@@ -1,47 +1,65 @@
 package com.mecanicadm.mecanicadm_api.core.workorder.usecase;
 
-import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
-
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrder;
+import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudget;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderGateway;
-import com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetItem;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.BudgetGeneratedEvent;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
+import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.CalculateWorkOrderBudgetCommand;
+import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
 
 import java.math.BigDecimal;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public class CalculateWorkOrderBudgetUseCase implements UseCase<CalculateWorkOrderBudgetCommand, UUID> {
-    private final WorkOrderGateway gateway;
 
-    public CalculateWorkOrderBudgetUseCase(WorkOrderGateway gateway) {
+    private final WorkOrderBudgetGateway gateway;
+    private final EventPublisher eventPublisher;
+
+    public CalculateWorkOrderBudgetUseCase(WorkOrderBudgetGateway gateway, EventPublisher eventPublisher) {
         this.gateway = gateway;
+        this.eventPublisher = eventPublisher;
     }
 
     public UUID execute(CalculateWorkOrderBudgetCommand cmd) {
-        WorkOrder workOrder = gateway.findById(cmd.workOrderId())
-                .orElseThrow(WorkOrderExceptions.NotFound::new);
+        WorkOrderBudget budget = gateway.findById(cmd.workOrderId()).orElse(null);
 
-        BigDecimal totalMaterials = defaultToZero(gateway.sumMaterialsTotalByWorkOrderId(cmd.workOrderId()));
-        BigDecimal totalLabor = defaultToZero(gateway.sumLaborTotalByWorkOrderId(cmd.workOrderId()));
-        BigDecimal totalPrice = totalMaterials.add(totalLabor);
+        if (budget == null) {
+            if (cmd.totalPrice() == null) {
+                throw new BudgetExceptions.BudgetNotFound();
+            }
+            budget = WorkOrderBudget.create(cmd.workOrderId(), cmd.totalPrice());
+        } else {
+            budget.updateTotalPrice(resolveTotalPrice(budget, cmd.totalPrice()));
+        }
 
-        workOrder.getBudget().ifPresentOrElse(
-                budget -> {
-                    budget.updateTotalPrice(totalPrice);
-                    gateway.saveBudget(budget);
-                },
-                () -> {
-                    WorkOrderBudget newBudget = WorkOrderBudget.create(workOrder.getId(), totalPrice);
-                    gateway.saveBudget(newBudget);
-                }
-        );
+        gateway.save(budget);
+        eventPublisher.publish(new BudgetGeneratedEvent(budget.getWorkOrderId(), budget.getTotalPrice()));
 
-        return workOrder.getId();
+        return budget.getWorkOrderId();
     }
 
-    private BigDecimal defaultToZero(BigDecimal value) {
-        return Objects.isNull(value) ? BigDecimal.ZERO : value;
+    private BigDecimal resolveTotalPrice(WorkOrderBudget budget, BigDecimal informedTotalPrice) {
+        if (informedTotalPrice != null) {
+            return informedTotalPrice;
+        }
+        return calculateTotalFromItems(budget.getItems());
+    }
+
+    private BigDecimal calculateTotalFromItems(Set<WorkOrderBudgetItem> items) {
+        return items.stream()
+                .map(this::itemTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal itemTotal(WorkOrderBudgetItem item) {
+        BigDecimal price = Objects.requireNonNullElse(item.getPrice(), BigDecimal.ZERO);
+        if (WorkOrderBudgetItem.TYPE_MATERIAL.equals(item.getType())) {
+            return price.multiply(BigDecimal.valueOf(item.getQuantity()));
+        }
+        return price;
     }
 }

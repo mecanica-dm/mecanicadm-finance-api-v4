@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/work-orders/{workOrderId}/budget")
+@RequestMapping({"/budgets/{workOrderId}", "/work-orders/{workOrderId}/budget"})
 public class WorkOrderBudgetController implements WorkOrderBudgetOpenApi {
 
     private final SendWorkOrderBudgetUseCase sendWorkOrderBudgetUseCase;
@@ -65,7 +65,7 @@ public class WorkOrderBudgetController implements WorkOrderBudgetOpenApi {
     @Override
     @PostMapping("/recalculate")
     public ResponseEntity<Void> recalculateBudget(@PathVariable UUID workOrderId) {
-        calculateWorkOrderBudgetUseCase.execute(new CalculateWorkOrderBudgetCommand(workOrderId));
+        calculateWorkOrderBudgetUseCase.execute(new CalculateWorkOrderBudgetCommand(workOrderId, null));
         return ResponseEntity.noContent().build();
     }
 

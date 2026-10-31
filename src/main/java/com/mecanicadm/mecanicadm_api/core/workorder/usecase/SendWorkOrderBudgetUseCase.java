@@ -1,76 +1,85 @@
 package com.mecanicadm.mecanicadm_api.core.workorder.usecase;
 
-import com.mecanicadm.mecanicadm_api.core.client.domain.Client;
-import com.mecanicadm.mecanicadm_api.core.client.domain.port.ClientGateway;
 import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EmailAttachment;
 import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EmailService;
+import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.BudgetDecisionToken;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrder;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudget;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetClient;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetInfo;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetVehicle;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.BudgetSentForDecisionEvent;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.BudgetSentForDecisionFailedEvent;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.BudgetDecisionTokenGateway;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderGateway;
-import com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
+import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.SendWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableBudgetResponse;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.query.GetPrintableBudgetQuery;
 import com.mecanicadm.mecanicadm_api.shared.usecase.VoidUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
-import java.math.BigDecimal;
 import java.util.Base64;
 import java.util.UUID;
 
 public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudgetCommand> {
+
     private static final Logger logger = LoggerFactory.getLogger(SendWorkOrderBudgetUseCase.class);
 
-    private final WorkOrderGateway gateway;
+    private final WorkOrderBudgetGateway gateway;
     private final BudgetDecisionTokenGateway tokenGateway;
-    private final ClientGateway clientGateway;
     private final EmailService emailService;
     private final GetPrintableBudgetUseCase getPrintableBudgetUseCase;
+    private final EventPublisher eventPublisher;
     private final String budgetDecisionPath;
 
-    public SendWorkOrderBudgetUseCase(WorkOrderGateway gateway,
+    public SendWorkOrderBudgetUseCase(WorkOrderBudgetGateway gateway,
                                       BudgetDecisionTokenGateway tokenGateway,
-                                      ClientGateway clientGateway,
                                       EmailService emailService,
                                       GetPrintableBudgetUseCase getPrintableBudgetUseCase,
-                                      String budgetDecisionPath) {
+                                      EventPublisher eventPublisher,
+                                      @Value("${app.budget.decision-path:/budget-decision/}") String budgetDecisionPath) {
         this.gateway = gateway;
         this.tokenGateway = tokenGateway;
-        this.clientGateway = clientGateway;
         this.emailService = emailService;
         this.getPrintableBudgetUseCase = getPrintableBudgetUseCase;
+        this.eventPublisher = eventPublisher;
         this.budgetDecisionPath = budgetDecisionPath;
     }
 
     public void execute(SendWorkOrderBudgetCommand cmd) {
-        WorkOrder workOrder = gateway.findById(cmd.workOrderId())
-                .orElseThrow(WorkOrderExceptions.NotFound::new);
+        WorkOrderBudget budget = gateway.findById(cmd.workOrderId())
+                .orElseThrow(BudgetExceptions.BudgetNotFound::new);
 
-        workOrder.getBudget().ifPresentOrElse(
-                budget -> {
-                    budget.send();
-                    gateway.saveBudget(budget);
+        budget.send();
+        gateway.save(budget);
 
-                    BudgetDecisionToken token = BudgetDecisionToken.create(workOrder.getId());
-                    tokenGateway.create(token);
+        BudgetDecisionToken token = BudgetDecisionToken.create(budget.getWorkOrderId());
+        tokenGateway.create(token);
 
-                    String clientEmail = clientGateway.findById(workOrder.getClientId())
-                            .map(Client::getEmail)
-                            .orElse(null);
+        eventPublisher.publish(new BudgetSentForDecisionEvent(budget.getWorkOrderId()));
 
-                    if (clientEmail != null) {
-                        String subject = "Orçamento - Ordem de Serviço #" + workOrder.getId().toString();
-                        String htmlBody = buildEmailHtml(workOrder, budget.getTotalPrice(), token.getToken(), cmd.baseUrl());
-                        EmailAttachment attachment = generatePdfAttachment(cmd.workOrderId());
-                        emailService.send(clientEmail, subject, htmlBody, attachment);
-                    }
-                },
-                () -> {
-                    throw new WorkOrderExceptions.BudgetNotFound();
-                }
-        );
+        String clientEmail = resolveClientEmail(budget.getInfo());
+        if (clientEmail == null) {
+            return;
+        }
+
+        try {
+            String subject = "Orçamento - Ordem de Serviço #" + budget.getWorkOrderId();
+            String htmlBody = buildEmailHtml(budget, token.getToken(), cmd.baseUrl());
+            EmailAttachment attachment = generatePdfAttachment(budget.getWorkOrderId());
+            emailService.send(clientEmail, subject, htmlBody, attachment);
+        } catch (RuntimeException e) {
+            eventPublisher.publish(new BudgetSentForDecisionFailedEvent(budget.getWorkOrderId()));
+            throw e;
+        }
+    }
+
+    private String resolveClientEmail(WorkOrderBudgetInfo info) {
+        WorkOrderBudgetClient client = info == null ? null : info.getClient();
+        return client == null ? null : client.getEmail();
     }
 
     private EmailAttachment generatePdfAttachment(UUID workOrderId) {
@@ -85,10 +94,15 @@ public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudg
         }
     }
 
-    private String buildEmailHtml(WorkOrder workOrder, BigDecimal totalPrice, String token, String baseUrl) {
+    private String buildEmailHtml(WorkOrderBudget budget, String token, String baseUrl) {
         String approveUrl = baseUrl + budgetDecisionPath + token + "/form?action=APPROVED";
         String rejectUrl = baseUrl + budgetDecisionPath + token + "/form?action=REJECTED";
         String changesUrl = baseUrl + budgetDecisionPath + token + "/form?action=CHANGES_REQUESTED";
+
+        WorkOrderBudgetInfo info = budget.getInfo();
+        WorkOrderBudgetVehicle vehicle = info == null ? null : info.getVehicle();
+        String vehicleDescription = vehicle == null ? "" : vehicle.getLicensePlate();
+        String description = info == null || info.getDescription() == null ? "" : info.getDescription();
 
         return """
                 <!DOCTYPE html>
@@ -115,10 +129,10 @@ public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudg
                 </body>
                 </html>
                 """.formatted(
-                workOrder.getId().toString().substring(0, 8),
-                workOrder.getVehicleId(),
-                workOrder.getDescription(),
-                totalPrice,
+                budget.getWorkOrderId().toString().substring(0, 8),
+                vehicleDescription,
+                description,
+                budget.getTotalPrice(),
                 approveUrl,
                 rejectUrl,
                 changesUrl

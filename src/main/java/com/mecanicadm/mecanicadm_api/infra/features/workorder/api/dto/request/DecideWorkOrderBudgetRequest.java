@@ -4,7 +4,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.enums.WorkOrderBudget
 import jakarta.validation.constraints.NotNull;
 
 public record DecideWorkOrderBudgetRequest(
-        @NotNull(message = "{validation.work.order.budget.decision.required}")
+        @NotNull(message = "{validation.budget.decision.required}")
         WorkOrderBudgetStatus decision,
 
         String observation

@@ -1,6 +1,7 @@
 package com.mecanicadm.mecanicadm_api.core.workorder.domain;
 
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
+import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -144,11 +145,23 @@ class WorkOrderBudgetTest {
     }
 
     @Test
+    @DisplayName("Deve expor a descricao e os dados do orcamento")
+    void shouldExposeDescriptionAndInfo() {
+        UUID workOrderId = UUID.randomUUID();
+        WorkOrderBudgetInfo info = new WorkOrderBudgetInfo(null, null, "Revisao completa", null);
+        WorkOrderBudget budget = WorkOrderBudget.restore(
+                workOrderId, new BigDecimal("250.00"), WorkOrderBudgetStatus.PENDING, null, info);
+
+        assertEquals("Revisao completa", budget.getDescription());
+        assertEquals(info, budget.getInfo());
+    }
+
+    @Test
     @DisplayName("Nao deve criar orcamento com valor total zero")
     void shouldNotCreateBudgetWithZeroTotalPrice() {
         UUID workOrderId = UUID.randomUUID();
 
-        assertThrows(com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions.BudgetTotalPriceInvalid.class,
+        assertThrows(BudgetExceptions.BudgetTotalPriceInvalid.class,
                 () -> WorkOrderBudget.create(workOrderId, BigDecimal.ZERO));
     }
 
@@ -157,7 +170,7 @@ class WorkOrderBudgetTest {
     void shouldNotCreateBudgetWithNegativeTotalPrice() {
         UUID workOrderId = UUID.randomUUID();
 
-        assertThrows(com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions.BudgetTotalPriceInvalid.class,
+        assertThrows(BudgetExceptions.BudgetTotalPriceInvalid.class,
                 () -> WorkOrderBudget.create(workOrderId, new BigDecimal("-50.00")));
     }
 
@@ -167,7 +180,7 @@ class WorkOrderBudgetTest {
         UUID workOrderId = UUID.randomUUID();
         WorkOrderBudget budget = WorkOrderBudget.create(workOrderId, new BigDecimal("100.00"));
 
-        assertThrows(com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions.BudgetTotalPriceInvalid.class,
+        assertThrows(BudgetExceptions.BudgetTotalPriceInvalid.class,
                 () -> budget.updateTotalPrice(BigDecimal.ZERO));
     }
 }

@@ -5,6 +5,7 @@ public enum WorkOrderBudgetStatus {
     WAITING_DECISION,
     APPROVED,
     REJECTED,
-    CHANGES_REQUESTED
+    CHANGES_REQUESTED,
+    CANCELED
 }
 

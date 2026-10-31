@@ -16,7 +16,8 @@ public class WorkOrderBudgetJpaMapper {
                 entity.getWorkOrderId(),
                 entity.getTotalPrice(),
                 entity.getStatus(),
-                entity.getObservation()
+                entity.getObservation(),
+                entity.getWorkOrderBudgetInfo()
         );
     }
 
@@ -26,7 +27,8 @@ public class WorkOrderBudgetJpaMapper {
                 domain.getWorkOrderId(),
                 domain.getTotalPrice(),
                 domain.getStatus(),
-                domain.getObservation()
+                domain.getObservation(),
+                domain.getInfo()
         );
     }
 }

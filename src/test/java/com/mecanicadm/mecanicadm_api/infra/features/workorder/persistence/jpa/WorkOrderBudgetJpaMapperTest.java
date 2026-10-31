@@ -1,6 +1,10 @@
 package com.mecanicadm.mecanicadm_api.infra.features.workorder.persistence.jpa;
 
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudget;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetClient;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetInfo;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetItem;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetVehicle;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 import com.mecanicadm.mecanicadm_api.infra.features.workorder.persistence.entity.WorkOrderBudgetJpaEntity;
 import org.junit.jupiter.api.DisplayName;
@@ -67,6 +71,30 @@ class WorkOrderBudgetJpaMapperTest {
         assertEquals(new BigDecimal("150.00"), entity.getTotalPrice());
         assertEquals(WorkOrderBudgetStatus.CHANGES_REQUESTED, entity.getStatus());
         assertEquals("Solicitar reajuste", entity.getObservation());
+    }
+
+    @Test
+    @DisplayName("Deve mapear WorkOrderBudgetInfo entre domínio e entidade")
+    void shouldMapBudgetInfo() {
+        var workOrderId = UUID.randomUUID();
+        var info = new WorkOrderBudgetInfo(
+                WorkOrderBudgetClient.create("Cliente", "cliente@teste.com", "12345678901", "48999999999"),
+                WorkOrderBudgetVehicle.create("ABC-1234", "Modelo", "Marca", (short) 2020),
+                "descricao",
+                java.util.Set.of(WorkOrderBudgetItem.create(
+                        "Material", 2, new BigDecimal("50.00"), WorkOrderBudgetItem.TYPE_MATERIAL)));
+        var domain = WorkOrderBudget.restore(
+                workOrderId, new BigDecimal("100.00"), WorkOrderBudgetStatus.PENDING, null, info);
+
+        var entity = WorkOrderBudgetJpaMapper.toEntity(domain);
+        var restored = WorkOrderBudgetJpaMapper.toDomain(entity);
+
+        assertEquals("Cliente", entity.getWorkOrderBudgetInfo().getClient().getName());
+        assertEquals("descricao", entity.getWorkOrderBudgetInfo().getDescription());
+        assertEquals(1, entity.getWorkOrderBudgetInfo().getItems().size());
+        assertEquals("descricao", restored.getDescription());
+        assertEquals("ABC-1234", restored.getInfo().getVehicle().getLicensePlate());
+        assertEquals(1, restored.getItems().size());
     }
 
     @Test

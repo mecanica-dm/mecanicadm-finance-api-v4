@@ -6,8 +6,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 public record ManuallyAdjustWorkOrderBudgetRequest(
-        @NotNull(message = "{validation.workorder.budget.price.required}")
-        @PositiveOrZero(message = "{validation.workorder.budget.price.positiveorzero}")
+        @NotNull(message = "{validation.budget.price.required}")
+        @PositiveOrZero(message = "{validation.budget.price.positiveorzero}")
         BigDecimal newTotalPrice
 ) {
 }

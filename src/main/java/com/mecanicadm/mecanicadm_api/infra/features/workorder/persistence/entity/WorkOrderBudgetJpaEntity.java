@@ -1,7 +1,15 @@
 package com.mecanicadm.mecanicadm_api.infra.features.workorder.persistence.entity;
 
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetInfo;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -24,14 +32,24 @@ public class WorkOrderBudgetJpaEntity {
     @Column(name = "observation")
     private String observation;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "work_order_budget_info", columnDefinition = "jsonb")
+    private WorkOrderBudgetInfo workOrderBudgetInfo;
+
     protected WorkOrderBudgetJpaEntity() {
     }
 
     public WorkOrderBudgetJpaEntity(UUID workOrderId, BigDecimal totalPrice, WorkOrderBudgetStatus status, String observation) {
+        this(workOrderId, totalPrice, status, observation, null);
+    }
+
+    public WorkOrderBudgetJpaEntity(UUID workOrderId, BigDecimal totalPrice, WorkOrderBudgetStatus status, String observation,
+                                    WorkOrderBudgetInfo workOrderBudgetInfo) {
         this.workOrderId = workOrderId;
         this.totalPrice = totalPrice;
         this.status = status;
         this.observation = observation;
+        this.workOrderBudgetInfo = workOrderBudgetInfo;
     }
 
     public UUID getWorkOrderId() {
@@ -48,5 +66,9 @@ public class WorkOrderBudgetJpaEntity {
 
     public String getObservation() {
         return observation;
+    }
+
+    public WorkOrderBudgetInfo getWorkOrderBudgetInfo() {
+        return workOrderBudgetInfo;
     }
 }

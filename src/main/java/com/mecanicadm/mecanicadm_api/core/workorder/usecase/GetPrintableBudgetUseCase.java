@@ -1,23 +1,12 @@
 package com.mecanicadm.mecanicadm_api.core.workorder.usecase;
 
-import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
-
-import com.mecanicadm.mecanicadm_api.core.client.domain.Client;
-import com.mecanicadm.mecanicadm_api.core.client.domain.port.ClientGateway;
-import com.mecanicadm.mecanicadm_api.core.client.exception.ClientExceptions;
-import com.mecanicadm.mecanicadm_api.core.labor.domain.Labor;
-import com.mecanicadm.mecanicadm_api.core.labor.domain.port.LaborGateway;
-import com.mecanicadm.mecanicadm_api.core.material.domain.Material;
-import com.mecanicadm.mecanicadm_api.core.material.domain.port.MaterialGateway;
-import com.mecanicadm.mecanicadm_api.core.vehicle.domain.Vehicle;
-import com.mecanicadm.mecanicadm_api.core.vehicle.domain.port.VehicleGateway;
-import com.mecanicadm.mecanicadm_api.core.vehicle.exception.VehicleExceptions;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrder;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudget;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderLaborItem;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderMaterialItem;
-import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderGateway;
-import com.mecanicadm.mecanicadm_api.core.workorder.exception.WorkOrderExceptions;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetClient;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetInfo;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetItem;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetVehicle;
+import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
+import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableBudgetDTO;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableBudgetResponse;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableClientDTO;
@@ -26,6 +15,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableMateria
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.dto.PrintableVehicleDTO;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.query.GetPrintableBudgetQuery;
 import com.mecanicadm.mecanicadm_api.infra.pdf.PdfGenerator;
+import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
 
 import java.math.BigDecimal;
 import java.util.Base64;
@@ -34,42 +24,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class GetPrintableBudgetUseCase implements UseCase<GetPrintableBudgetQuery, PrintableBudgetResponse> {
-    private final WorkOrderGateway workOrderGateway;
-    private final ClientGateway clientGateway;
-    private final VehicleGateway vehicleGateway;
-    private final LaborGateway laborGateway;
-    private final MaterialGateway materialGateway;
+    private final WorkOrderBudgetGateway budgetGateway;
     private final PdfGenerator pdfGenerator;
 
-    public GetPrintableBudgetUseCase(WorkOrderGateway workOrderGateway,
-                                     ClientGateway clientGateway,
-                                     VehicleGateway vehicleGateway,
-                                     LaborGateway laborGateway,
-                                     MaterialGateway materialGateway,
-                                     PdfGenerator pdfGenerator) {
-        this.workOrderGateway = workOrderGateway;
-        this.clientGateway = clientGateway;
-        this.vehicleGateway = vehicleGateway;
-        this.laborGateway = laborGateway;
-        this.materialGateway = materialGateway;
+    public GetPrintableBudgetUseCase(WorkOrderBudgetGateway budgetGateway, PdfGenerator pdfGenerator) {
+        this.budgetGateway = budgetGateway;
         this.pdfGenerator = pdfGenerator;
     }
 
     public PrintableBudgetResponse execute(GetPrintableBudgetQuery query) {
-        WorkOrder workOrder = getWorkOrder(query.workOrderId());
-        PrintableClientDTO clientDTO = buildClientDTO(workOrder.getClientId());
-        PrintableVehicleDTO vehicleDTO = buildVehicleDTO(workOrder.getVehicleId());
+        WorkOrderBudget budget = getBudget(query.workOrderId());
+        WorkOrderBudgetInfo info = budget.getInfo();
 
-        List<PrintableLaborItemDTO> laborItems = buildLaborItems(workOrder.getLaborItems());
-        List<PrintableMaterialItemDTO> materialItems = buildMaterialItems(workOrder.getMaterialItems());
+        PrintableClientDTO clientDTO = buildClientDTO(info.getClient());
+        PrintableVehicleDTO vehicleDTO = buildVehicleDTO(info.getVehicle());
+
+        List<PrintableLaborItemDTO> laborItems = buildLaborItems(info.getItems());
+        List<PrintableMaterialItemDTO> materialItems = buildMaterialItems(info.getItems());
 
         BigDecimal totalLabor = calculateTotalLabor(laborItems);
         BigDecimal totalMaterial = calculateTotalMaterial(materialItems);
-        BigDecimal totalBudget = calculateTotalBudget(workOrder, totalLabor, totalMaterial);
 
         PrintableBudgetDTO budgetDTO = new PrintableBudgetDTO(
                 clientDTO,
@@ -78,20 +54,21 @@ public class GetPrintableBudgetUseCase implements UseCase<GetPrintableBudgetQuer
                 materialItems,
                 totalLabor,
                 totalMaterial,
-                totalBudget
+                budget.getTotalPrice()
         );
 
-        return generatePdfResponse(workOrder.getId(), budgetDTO);
+        return generatePdfResponse(budget.getWorkOrderId(), budgetDTO);
     }
 
-    private WorkOrder getWorkOrder(UUID workOrderId) {
-        return workOrderGateway.findByIdWithItems(workOrderId)
-                .orElseThrow(WorkOrderExceptions.NotFound::new);
+    private WorkOrderBudget getBudget(UUID workOrderId) {
+        return budgetGateway.findById(workOrderId)
+                .orElseThrow(BudgetExceptions.BudgetNotFound::new);
     }
 
-    private PrintableClientDTO buildClientDTO(UUID clientId) {
-        Client client = clientGateway.findById(clientId)
-                .orElseThrow(ClientExceptions.NotFound::new);
+    private PrintableClientDTO buildClientDTO(WorkOrderBudgetClient client) {
+        if (client == null) {
+            throw new BudgetExceptions.ClientRequired();
+        }
 
         return new PrintableClientDTO(
                 client.getName(),
@@ -101,9 +78,10 @@ public class GetPrintableBudgetUseCase implements UseCase<GetPrintableBudgetQuer
         );
     }
 
-    private PrintableVehicleDTO buildVehicleDTO(String vehicleId) {
-        Vehicle vehicle = vehicleGateway.findByLicensePlate(vehicleId)
-                .orElseThrow(VehicleExceptions.NotFound::new);
+    private PrintableVehicleDTO buildVehicleDTO(WorkOrderBudgetVehicle vehicle) {
+        if (vehicle == null) {
+            throw new BudgetExceptions.VehicleRequired();
+        }
 
         return new PrintableVehicleDTO(
                 vehicle.getLicensePlate(),
@@ -111,35 +89,25 @@ public class GetPrintableBudgetUseCase implements UseCase<GetPrintableBudgetQuer
         );
     }
 
-    private List<PrintableLaborItemDTO> buildLaborItems(Set<WorkOrderLaborItem> laborItems) {
-        Set<UUID> laborIds = laborItems.stream()
-                .map(WorkOrderLaborItem::getLaborId)
-                .collect(Collectors.toSet());
-
-        Map<UUID, Labor> laborsById = laborGateway.findAllByIds(laborIds).stream()
-                .collect(Collectors.toMap(Labor::getId, Function.identity()));
-
-        return laborItems.stream()
-                .map(item -> {
-                    Labor labor = laborsById.get(item.getLaborId());
-                    return new PrintableLaborItemDTO(labor.getName(), labor.getPrice());
-                })
+    private List<PrintableLaborItemDTO> buildLaborItems(Set<WorkOrderBudgetItem> items) {
+        return items.stream()
+                .filter(item -> WorkOrderBudgetItem.TYPE_LABOR.equals(item.getType()))
+                .map(item -> new PrintableLaborItemDTO(item.getDescription(), item.getPrice()))
                 .toList();
     }
 
-    private List<PrintableMaterialItemDTO> buildMaterialItems(Set<WorkOrderMaterialItem> materialItems) {
-        Set<UUID> materialIds = materialItems.stream()
-                .map(WorkOrderMaterialItem::getMaterialId)
-                .collect(Collectors.toSet());
-
-        Map<UUID, Material> materialsById = materialGateway.findAllByIds(materialIds).stream()
-                .collect(Collectors.toMap(Material::getId, Function.identity()));
-
-        return materialItems.stream()
+    private List<PrintableMaterialItemDTO> buildMaterialItems(Set<WorkOrderBudgetItem> items) {
+        return items.stream()
+                .filter(item -> WorkOrderBudgetItem.TYPE_MATERIAL.equals(item.getType()))
                 .map(item -> {
-                    Material material = materialsById.get(item.getMaterialId());
-                    BigDecimal totalPrice = material.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-                    return new PrintableMaterialItemDTO(material.getName(), item.getQuantity(), material.getPrice(), totalPrice);
+                    BigDecimal unitPrice = item.getPrice();
+                    BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+                    return new PrintableMaterialItemDTO(
+                            item.getDescription(),
+                            item.getQuantity(),
+                            unitPrice,
+                            totalPrice
+                    );
                 })
                 .toList();
     }
@@ -154,12 +122,6 @@ public class GetPrintableBudgetUseCase implements UseCase<GetPrintableBudgetQuer
         return materialItems.stream()
                 .map(PrintableMaterialItemDTO::totalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private BigDecimal calculateTotalBudget(WorkOrder workOrder, BigDecimal totalLabor, BigDecimal totalMaterial) {
-        return workOrder.getBudget()
-                .map(WorkOrderBudget::getTotalPrice)
-                .orElseGet(() -> totalLabor.add(totalMaterial));
     }
 
     private PrintableBudgetResponse generatePdfResponse(UUID workOrderId, PrintableBudgetDTO budgetDTO) {
