@@ -12,6 +12,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.WorkOrderCreate
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.CreateWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.VoidUseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
@@ -29,6 +30,7 @@ public class CreateWorkOrderBudgetUseCase implements VoidUseCase<CreateWorkOrder
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void execute(CreateWorkOrderBudgetCommand cmd) {
         Set<WorkOrderBudgetItem> items = buildItems(cmd.materialItems(), cmd.laborItems());
         BigDecimal totalPrice = resolveTotalPrice(cmd.totalPrice(), items);

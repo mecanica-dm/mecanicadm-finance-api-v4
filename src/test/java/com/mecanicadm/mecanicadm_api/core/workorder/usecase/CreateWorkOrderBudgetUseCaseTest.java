@@ -1,6 +1,5 @@
 package com.mecanicadm.mecanicadm_api.core.workorder.usecase;
 
-import com.mecanicadm.mecanicadm_api.core.material.domain.enums.MaterialType;
 import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudget;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.WorkOrderBudgetItem;
@@ -102,7 +101,7 @@ class CreateWorkOrderBudgetUseCaseTest {
                 new WorkOrderCreatedEvent.Vehicle("ABC-1234", "Modelo", "Marca", (short) 2020),
                 List.of(new WorkOrderCreatedEvent.MaterialItem(
                         UUID.randomUUID(), UUID.randomUUID(), 2, "Material", "Marca",
-                        "descricao material", new BigDecimal("50.00"), MaterialType.PART)),
+                        "descricao material", new BigDecimal("50.00"), "PART")),
                 List.of(new WorkOrderCreatedEvent.LaborItem(
                         UUID.randomUUID(), workOrderId, UUID.randomUUID(), null, null, null,
                         "Servico", new BigDecimal("80.00")))

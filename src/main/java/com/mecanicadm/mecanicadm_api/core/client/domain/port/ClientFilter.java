@@ -1,7 +1,0 @@
-package com.mecanicadm.mecanicadm_api.core.client.domain.port;
-
-public record ClientFilter(
-        String name,
-        String document
-) {
-}

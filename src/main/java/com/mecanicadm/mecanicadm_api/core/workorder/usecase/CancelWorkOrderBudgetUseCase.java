@@ -8,6 +8,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetG
 import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.CancelWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.VoidUseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 public class CancelWorkOrderBudgetUseCase implements VoidUseCase<CancelWorkOrderBudgetCommand> {
 
@@ -19,6 +20,7 @@ public class CancelWorkOrderBudgetUseCase implements VoidUseCase<CancelWorkOrder
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void execute(CancelWorkOrderBudgetCommand cmd) {
         WorkOrderBudget budget = gateway.findById(cmd.workOrderId())
                 .orElseThrow(BudgetExceptions.BudgetNotFound::new);

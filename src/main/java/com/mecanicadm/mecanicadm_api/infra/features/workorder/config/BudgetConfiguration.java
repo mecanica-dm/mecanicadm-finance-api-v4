@@ -4,6 +4,7 @@ import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EmailService;
 import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.BudgetDecisionTokenGateway;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
+import com.mecanicadm.mecanicadm_api.core.workorder.usecase.BudgetSendTransactionService;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.CalculateWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.CancelWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.CreateWorkOrderBudgetUseCase;
@@ -21,14 +22,19 @@ import org.springframework.context.annotation.Configuration;
 public class BudgetConfiguration {
 
     @Bean
-    public SendWorkOrderBudgetUseCase sendWorkOrderBudgetUseCase(WorkOrderBudgetGateway budgetGateway,
-                                                                 BudgetDecisionTokenGateway budgetDecisionTokenGateway,
+    public BudgetSendTransactionService budgetSendTransactionService(WorkOrderBudgetGateway budgetGateway,
+                                                                     BudgetDecisionTokenGateway budgetDecisionTokenGateway,
+                                                                     EventPublisher eventPublisher) {
+        return new BudgetSendTransactionService(budgetGateway, budgetDecisionTokenGateway, eventPublisher);
+    }
+
+    @Bean
+    public SendWorkOrderBudgetUseCase sendWorkOrderBudgetUseCase(BudgetSendTransactionService transactionService,
                                                                  EmailService emailService,
                                                                  GetPrintableBudgetUseCase getPrintableBudgetUseCase,
-                                                                 EventPublisher eventPublisher,
                                                                  @Value("${app.budget.decision-path:/budget-decision/}") String budgetDecisionPath) {
-        return new SendWorkOrderBudgetUseCase(budgetGateway, budgetDecisionTokenGateway, emailService,
-                getPrintableBudgetUseCase, eventPublisher, budgetDecisionPath);
+        return new SendWorkOrderBudgetUseCase(transactionService, emailService,
+                getPrintableBudgetUseCase, budgetDecisionPath);
     }
 
     @Bean

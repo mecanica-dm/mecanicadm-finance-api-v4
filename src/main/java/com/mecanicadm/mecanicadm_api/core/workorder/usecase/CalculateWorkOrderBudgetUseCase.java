@@ -8,6 +8,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetG
 import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.CalculateWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -24,6 +25,7 @@ public class CalculateWorkOrderBudgetUseCase implements UseCase<CalculateWorkOrd
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public UUID execute(CalculateWorkOrderBudgetCommand cmd) {
         WorkOrderBudget budget = gateway.findById(cmd.workOrderId()).orElse(null);
 

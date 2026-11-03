@@ -7,6 +7,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetG
 import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.ManuallyAdjustWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.VoidUseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 public class ManuallyAdjustWorkOrderBudgetUseCase implements VoidUseCase<ManuallyAdjustWorkOrderBudgetCommand> {
 
@@ -18,6 +19,7 @@ public class ManuallyAdjustWorkOrderBudgetUseCase implements VoidUseCase<Manuall
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void execute(ManuallyAdjustWorkOrderBudgetCommand cmd) {
         WorkOrderBudget budget = gateway.findById(cmd.workOrderId())
                 .orElseThrow(BudgetExceptions.BudgetNotFound::new);

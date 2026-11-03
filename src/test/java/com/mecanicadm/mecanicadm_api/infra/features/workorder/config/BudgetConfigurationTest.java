@@ -4,6 +4,7 @@ import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EmailService;
 import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.BudgetDecisionTokenGateway;
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.port.WorkOrderBudgetGateway;
+import com.mecanicadm.mecanicadm_api.core.workorder.usecase.BudgetSendTransactionService;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.DecideWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.GetPrintableBudgetUseCase;
 import com.mecanicadm.mecanicadm_api.infra.pdf.PdfGenerator;
@@ -31,6 +32,8 @@ class BudgetConfigurationTest {
     private PdfGenerator pdfGenerator;
     @Mock
     private DecideWorkOrderBudgetUseCase decideWorkOrderBudgetUseCase;
+    @Mock
+    private BudgetSendTransactionService budgetSendTransactionService;
 
     private BudgetConfiguration configuration;
 
@@ -76,12 +79,19 @@ class BudgetConfigurationTest {
     }
 
     @Test
+    @DisplayName("Deve criar bean BudgetSendTransactionService")
+    void shouldCreateBudgetSendTransactionService() {
+        assertNotNull(configuration.budgetSendTransactionService(
+                budgetGateway, tokenGateway, eventPublisher));
+    }
+
+    @Test
     @DisplayName("Deve criar bean SendWorkOrderBudgetUseCase")
     void shouldCreateSendWorkOrderBudgetUseCase() {
         GetPrintableBudgetUseCase printable = configuration.getPrintableBudgetUseCase(budgetGateway, pdfGenerator);
 
         assertNotNull(configuration.sendWorkOrderBudgetUseCase(
-                budgetGateway, tokenGateway, emailService, printable, eventPublisher, "/budget-decision/"));
+                budgetSendTransactionService, emailService, printable, "/budget-decision/"));
     }
 
     @Test

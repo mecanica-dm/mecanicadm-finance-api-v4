@@ -7,6 +7,7 @@ import com.mecanicadm.mecanicadm_api.core.workorder.exception.BudgetExceptions;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.DecideWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_api.core.workorder.usecase.command.ProcessBudgetDecisionByTokenCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.VoidUseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 public class ProcessBudgetDecisionByTokenUseCase implements VoidUseCase<ProcessBudgetDecisionByTokenCommand> {
 
@@ -29,6 +30,7 @@ public class ProcessBudgetDecisionByTokenUseCase implements VoidUseCase<ProcessB
     }
 
     @Override
+    @Transactional
     public void execute(ProcessBudgetDecisionByTokenCommand cmd) {
         BudgetDecisionToken token = tokenGateway.findByToken(cmd.token())
                 .orElseThrow(BudgetExceptions.BudgetTokenNotFound::new);
