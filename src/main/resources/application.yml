@@ -1,0 +1,110 @@
+spring:
+  application:
+    name: mecanica-dm-finance-api
+
+  datasource:
+    url: "jdbc:postgresql://${DB_HOST:db}:${DB_PORT:5432}/${DB_NAME:mecanicadmfinancedb}"
+    username: "${DB_USER:admin}"
+    password: "${DB_PASSWORD:admin}"
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  messages:
+    encoding: UTF-8
+    basename: i18n/messages
+
+  flyway:
+    enabled: true
+    clean-disabled: true
+
+  mail:
+    host: "${MAIL_HOST:smtp.gmail.com}"
+    port: "${MAIL_PORT:587}"
+    username: "${MAIL_USERNAME:username}"
+    password: "${MAIL_PASSWORD:password}"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  rabbitmq:
+    host: "${RABBITMQ_HOST:localhost}"
+    port: "${RABBITMQ_PORT:5672}"
+    username: "${RABBITMQ_USER:admin}"
+    password: "${RABBITMQ_PASSWORD:admin}"
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+
+server:
+  servlet:
+    context-path: /api
+  error:
+    include-stacktrace: never
+
+api:
+  security:
+    token:
+      secret: "${JWT_SECRET:development}"
+
+cors:
+  allowed-origins: "*"
+
+management:
+  # Habilita os endpoints de Liveness e Readiness do Kubernetes
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  # Expõe os endpoints via Web
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  swagger-ui:
+    doc-expansion: none
+    tags-sorter: alpha
+
+app:
+  mercado-pago:
+    access-token: "${MERCADO_PAGO_ACCESS_TOKEN:}"
+    public-key: "${MERCADO_PAGO_PUBLIC_KEY:}"
+    client-id: "${MERCADO_PAGO_CLIENT_ID:}"
+    client-secret: "${MERCADO_PAGO_CLIENT_SECRET:}"
+    default-card:
+      number: "${MERCADO_PAGO_DEFAULT_CARD_NUMBER:4235647728025682}"
+      expiration-month: "${MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_MONTH:11}"
+      expiration-year: "${MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_YEAR:2030}"
+      security-code: "${MERCADO_PAGO_DEFAULT_CARD_SECURITY_CODE:123}"
+      holder-name: "${MERCADO_PAGO_DEFAULT_CARD_HOLDER_NAME:APRO}"
+      identification-type: "${MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_TYPE:CPF}"
+      identification-number: "${MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_NUMBER:19119119100}"
+  budget:
+    base-url: "${BUDGET_BASE_URL:http://localhost:8080/api}"
+  outbox:
+    enabled: "${OUTBOX_ENABLED:true}"
+    initial-delay-ms: "${OUTBOX_INITIAL_DELAY_MS:5000}"
+    poll-interval-ms: "${OUTBOX_POLL_INTERVAL_MS:1000}"
+    batch-size: "${OUTBOX_BATCH_SIZE:50}"
+    processing-timeout-seconds: "${OUTBOX_PROCESSING_TIMEOUT_SECONDS:60}"
+    retention-days: "${OUTBOX_RETENTION_DAYS:30}"
+    cleanup-cron: "${OUTBOX_CLEANUP_CRON:0 0 3 * * *}"
+  rabbitmq:
+    exchange:
+      output: "${RABBITMQ_EXCHANGE_OUTPUT:mecanicadm-finance-api-output}"
+    queues:
+      budget: "${RABBITMQ_QUEUE_BUDGET:budget}"
+    headers:
+      event-type: "${RABBITMQ_HEADER_EVENT_TYPE:event-type}"
