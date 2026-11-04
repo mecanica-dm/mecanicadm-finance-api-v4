@@ -5,8 +5,10 @@ import com.mecanicadm.mecanicadm_api.core.payment.domain.CardData;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoCredentials;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoOrder;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoOrderData;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.Payment;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoCardTokenGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoOrderGateway;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.port.PaymentGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.exception.PaymentException;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.command.CreateMercadoPagoOrderCommand;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +49,8 @@ class CreateMercadoPagoOrderUseCaseTest {
     private MercadoPagoCardTokenGateway cardTokenGateway;
     @Mock
     private MercadoPagoOrderGateway orderGateway;
+    @Mock
+    private PaymentGateway paymentGateway;
 
     private CardData defaultCard;
 
@@ -71,10 +78,11 @@ class CreateMercadoPagoOrderUseCaseTest {
         when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
         when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
                 .thenReturn(expectedOrder);
+        when(paymentGateway.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        MercadoPagoOrder result = useCase.execute(command(idempotencyKey, null));
+        Payment result = useCase.execute(command(idempotencyKey, null));
 
-        assertSame(expectedOrder, result);
+        assertSame(expectedOrder, result.providerResponse());
         verify(generateTokenUseCase, never()).execute(anyString(), anyString());
 
         ArgumentCaptor<MercadoPagoOrderData> captor = ArgumentCaptor.forClass(MercadoPagoOrderData.class);
@@ -187,9 +195,94 @@ class CreateMercadoPagoOrderUseCaseTest {
         verifyNoInteractions(cardTokenGateway, orderGateway);
     }
 
+    @Test
+    @DisplayName("Deve persistir o pagamento após criar o pedido no Mercado Pago")
+    void shouldPersistPaymentAfterCreatingOrder() {
+        CreateMercadoPagoOrderUseCase useCase = useCaseWith(new MercadoPagoCredentials(
+                ACCESS_TOKEN, PUBLIC_KEY, null, null));
+        String idempotencyKey = UUID.randomUUID().toString();
+        MercadoPagoOrder expectedOrder = order("mp-order-1", "approved", "mp-payment-1");
+
+        when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+                .thenReturn(expectedOrder);
+        when(paymentGateway.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Payment result = useCase.execute(command(idempotencyKey, null));
+
+        assertSame(expectedOrder, result.providerResponse());
+
+        ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentGateway).save(captor.capture());
+
+        Payment payment = captor.getValue();
+        assertEquals(idempotencyKey, payment.externalReference());
+        assertEquals(idempotencyKey, payment.idempotencyKey());
+        assertEquals("mp-order-1", payment.mercadoPagoOrderId());
+        assertEquals("mp-payment-1", payment.mercadoPagoPaymentId());
+        assertEquals("approved", payment.status());
+        assertEquals(new BigDecimal("50.00"), payment.amount());
+        assertEquals(1, payment.installments());
+        assertEquals("visa", payment.paymentMethodId());
+        assertEquals("test_payer@example.com", payment.payerEmail());
+        assertSame(expectedOrder, payment.providerResponse());
+    }
+
+    @Test
+    @DisplayName("Deve retornar o pedido persistido quando a chave de idempotência já existir")
+    void shouldReturnStoredOrderWhenIdempotencyKeyAlreadyExists() {
+        CreateMercadoPagoOrderUseCase useCase = useCaseWith(new MercadoPagoCredentials(
+                ACCESS_TOKEN, PUBLIC_KEY, null, null));
+        String idempotencyKey = UUID.randomUUID().toString();
+        MercadoPagoOrder storedOrder = order("mp-order-1", "approved", "mp-payment-1");
+        Instant now = Instant.now();
+        Payment storedPayment = new Payment(
+                UUID.randomUUID(),
+                "external-reference",
+                idempotencyKey,
+                "mp-order-1",
+                "mp-payment-1",
+                "approved",
+                null,
+                new BigDecimal("50.00"),
+                1,
+                "visa",
+                "test_payer@example.com",
+                storedOrder,
+                now,
+                now
+        );
+
+        when(paymentGateway.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.of(storedPayment));
+
+        Payment result = useCase.execute(command(idempotencyKey, null));
+
+        assertSame(storedPayment, result);
+        verifyNoInteractions(generateTokenUseCase, cardTokenGateway, orderGateway);
+        verify(paymentGateway, never()).save(any());
+    }
+
+    private MercadoPagoOrder order(String id, String status, String paymentId) {
+        MercadoPagoOrder.PaymentMethod paymentMethod = new MercadoPagoOrder.PaymentMethod();
+        paymentMethod.setId("visa");
+
+        MercadoPagoOrder.Payment payment = new MercadoPagoOrder.Payment();
+        payment.setId(paymentId);
+        payment.setPaymentMethod(paymentMethod);
+
+        MercadoPagoOrder.Transactions transactions = new MercadoPagoOrder.Transactions();
+        transactions.setPayments(List.of(payment));
+
+        MercadoPagoOrder order = new MercadoPagoOrder();
+        order.setId(id);
+        order.setStatus(status);
+        order.setTransactions(transactions);
+        return order;
+    }
+
     private CreateMercadoPagoOrderUseCase useCaseWith(MercadoPagoCredentials credentials) {
         return new CreateMercadoPagoOrderUseCase(
-                generateTokenUseCase, cardTokenGateway, orderGateway, credentials, defaultCard);
+                generateTokenUseCase, cardTokenGateway, orderGateway, paymentGateway, credentials, defaultCard);
     }
 
     private CreateMercadoPagoOrderCommand command(String idempotencyKey, CardData card) {

@@ -5,8 +5,10 @@ import com.mecanicadm.mecanicadm_api.core.payment.domain.CardData;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoCredentials;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoOrder;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoOrderData;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.Payment;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoCardTokenGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoOrderGateway;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.port.PaymentGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.exception.PaymentException;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.command.CreateMercadoPagoOrderCommand;
 import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
@@ -14,7 +16,7 @@ import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoOrderCommand, MercadoPagoOrder> {
+public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoOrderCommand, Payment> {
 
     private static final String DEFAULT_DESCRIPTION = "Pagamento Mecanica DM";
     private static final String DEFAULT_PAYER_EMAIL = "test_payer@example.com";
@@ -31,28 +33,37 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
     private final GenerateMercadoPagoTokenUseCase generateTokenUseCase;
     private final MercadoPagoCardTokenGateway cardTokenGateway;
     private final MercadoPagoOrderGateway orderGateway;
+    private final PaymentGateway paymentGateway;
     private final MercadoPagoCredentials credentials;
     private final CardData defaultCard;
 
     public CreateMercadoPagoOrderUseCase(GenerateMercadoPagoTokenUseCase generateTokenUseCase,
                                          MercadoPagoCardTokenGateway cardTokenGateway,
                                          MercadoPagoOrderGateway orderGateway,
+                                         PaymentGateway paymentGateway,
                                          MercadoPagoCredentials credentials,
                                          CardData defaultCard) {
         this.generateTokenUseCase = generateTokenUseCase;
         this.cardTokenGateway = cardTokenGateway;
         this.orderGateway = orderGateway;
+        this.paymentGateway = paymentGateway;
         this.credentials = credentials;
         this.defaultCard = defaultCard;
     }
 
     @Override
-    public MercadoPagoOrder execute(CreateMercadoPagoOrderCommand command) {
+    public Payment execute(CreateMercadoPagoOrderCommand command) {
         validateIdempotencyKey(command.idempotencyKey());
+
+        Payment storedPayment = paymentGateway.findByIdempotencyKey(command.idempotencyKey()).orElse(null);
+        if (storedPayment != null && storedPayment.providerResponse() != null) {
+            return storedPayment;
+        }
 
         String externalReference = resolveExternalReference(command);
         String description = valueOrDefault(command.description(), DEFAULT_DESCRIPTION);
-        String totalAmount = formatTotalAmount(command.totalAmount());
+        BigDecimal amount = resolveTotalAmount(command.totalAmount());
+        String totalAmount = amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
         String payerEmail = valueOrDefault(command.payerEmail(), DEFAULT_PAYER_EMAIL);
         String payerFirstName = valueOrDefault(command.payerFirstName(), DEFAULT_PAYER_FIRST_NAME);
         String payerLastName = valueOrDefault(command.payerLastName(), DEFAULT_PAYER_LAST_NAME);
@@ -82,7 +93,17 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
                 installments
         );
 
-        return orderGateway.createOrder(orderData, authToken.getAccessToken(), command.idempotencyKey());
+        MercadoPagoOrder order = orderGateway.createOrder(orderData, authToken.getAccessToken(), command.idempotencyKey());
+
+        return paymentGateway.save(Payment.create(
+                externalReference,
+                command.idempotencyKey(),
+                amount,
+                installments,
+                paymentMethodId,
+                payerEmail,
+                order
+        ));
     }
 
     private AuthToken resolveAuthToken() {
@@ -129,12 +150,12 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
                 : sanitized;
     }
 
-    private String formatTotalAmount(BigDecimal totalAmount) {
+    private BigDecimal resolveTotalAmount(BigDecimal totalAmount) {
         BigDecimal amount = totalAmount == null ? DEFAULT_TOTAL_AMOUNT : totalAmount;
         if (amount.signum() <= 0) {
             throw new PaymentException.PaymentTotalAmountInvalid();
         }
-        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return amount;
     }
 
     private int resolveInstallments(Integer installments) {
