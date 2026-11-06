@@ -1,21 +1,26 @@
 package com.mecanicadm.mecanicadm_api.infra.features.payment.api;
 
 import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoOrder;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.Payment;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.CreateMercadoPagoOrderUseCase;
+import com.mecanicadm.mecanicadm_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
 import com.mecanicadm.mecanicadm_api.infra.features.payment.api.request.CreateOrderRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.UUID;
 
 @RestController
@@ -26,9 +31,12 @@ public class MercadoPagoOrderController {
     private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
 
     private final CreateMercadoPagoOrderUseCase createOrderUseCase;
+    private final GetMercadoPagoPaymentUseCase getPaymentUseCase;
 
-    public MercadoPagoOrderController(CreateMercadoPagoOrderUseCase createOrderUseCase) {
+    public MercadoPagoOrderController(CreateMercadoPagoOrderUseCase createOrderUseCase,
+                                      GetMercadoPagoPaymentUseCase getPaymentUseCase) {
         this.createOrderUseCase = createOrderUseCase;
+        this.getPaymentUseCase = getPaymentUseCase;
     }
 
     @PostMapping
@@ -47,7 +55,21 @@ public class MercadoPagoOrderController {
                 ? UUID.randomUUID().toString()
                 : idempotencyKey;
 
-        MercadoPagoOrder order = createOrderUseCase.execute(request.toCommand(resolvedIdempotencyKey));
-        return ResponseEntity.status(HttpStatus.CREATED).body(order);
+        Payment payment = createOrderUseCase.execute(request.toCommand(resolvedIdempotencyKey));
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(payment.id())
+                .toUri();
+
+        return ResponseEntity.created(location).body(payment.providerResponse());
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Consultar pedido de pagamento",
+            description = "Retorna o pedido de pagamento persistido a partir do identificador interno.")
+    @ApiResponse(responseCode = "200", description = "Pedido encontrado")
+    @ApiResponse(responseCode = "404", description = "Pedido não encontrado")
+    public ResponseEntity<MercadoPagoOrder> findById(@PathVariable UUID id) {
+        return ResponseEntity.ok(getPaymentUseCase.execute(id).providerResponse());
     }
 }

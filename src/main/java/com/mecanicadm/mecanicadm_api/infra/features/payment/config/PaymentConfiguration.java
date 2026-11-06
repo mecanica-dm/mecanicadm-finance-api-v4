@@ -5,15 +5,17 @@ import com.mecanicadm.mecanicadm_api.core.payment.domain.MercadoPagoCredentials;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoAuthGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoCardTokenGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoOrderGateway;
+import com.mecanicadm.mecanicadm_api.core.payment.domain.port.PaymentGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.CreateMercadoPagoOrderUseCase;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.GenerateMercadoPagoTokenUseCase;
+import com.mecanicadm.mecanicadm_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @EnableConfigurationProperties(MercadoPagoProperties.class)
-public class BeanConfiguration {
+public class PaymentConfiguration {
 
     @Bean
     public GenerateMercadoPagoTokenUseCase generateMercadoPagoTokenUseCase(MercadoPagoAuthGateway authGateway) {
@@ -25,6 +27,7 @@ public class BeanConfiguration {
             GenerateMercadoPagoTokenUseCase generateTokenUseCase,
             MercadoPagoCardTokenGateway cardTokenGateway,
             MercadoPagoOrderGateway orderGateway,
+            PaymentGateway paymentGateway,
             MercadoPagoProperties properties) {
 
         MercadoPagoCredentials credentials = new MercadoPagoCredentials(
@@ -49,8 +52,14 @@ public class BeanConfiguration {
                 generateTokenUseCase,
                 cardTokenGateway,
                 orderGateway,
+                paymentGateway,
                 credentials,
                 cardData
         );
+    }
+
+    @Bean
+    public GetMercadoPagoPaymentUseCase getMercadoPagoPaymentUseCase(PaymentGateway paymentGateway) {
+        return new GetMercadoPagoPaymentUseCase(paymentGateway);
     }
 }
