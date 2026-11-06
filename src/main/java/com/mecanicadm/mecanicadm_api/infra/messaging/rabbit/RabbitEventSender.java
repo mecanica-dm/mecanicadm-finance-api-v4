@@ -18,7 +18,7 @@ public class RabbitEventSender {
     private final String eventTypeHeader;
 
     public RabbitEventSender(RabbitTemplate rabbitTemplate,
-                             @Value("${app.rabbitmq.exchange.output:mecanicadm-finance-api-output}") String exchange,
+                             @Value("${app.rabbitmq.exchange.output:finance-output}") String exchange,
                              @Value("${app.rabbitmq.headers.event-type:event-type}") String eventTypeHeader) {
         this.rabbitTemplate = rabbitTemplate;
         this.exchange = exchange;

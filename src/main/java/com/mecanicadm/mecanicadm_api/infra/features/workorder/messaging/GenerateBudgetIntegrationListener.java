@@ -22,12 +22,7 @@ public class GenerateBudgetIntegrationListener {
         logger.info("Recebido GenerateBudgetIntegrationCommand para a OS {} (totalPrice={})",
                 command.workOrderId(), command.totalPrice());
 
-        try {
-            calculateWorkOrderBudgetUseCase.execute(
-                    new CalculateWorkOrderBudgetCommand(command.workOrderId(), command.totalPrice()));
-        } catch (Exception e) {
-            logger.error("Erro ao processar GenerateBudgetIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
-        }
+        calculateWorkOrderBudgetUseCase.execute(
+                new CalculateWorkOrderBudgetCommand(command.workOrderId(), command.totalPrice()));
     }
 }

@@ -6,14 +6,17 @@ import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.GenerateBudgetI
 import com.mecanicadm.mecanicadm_api.core.workorder.domain.event.WorkOrderCreatedEvent;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.HeadersExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,13 +27,37 @@ public class RabbitConfig {
 
     @Bean
     public HeadersExchange financeOutputExchange(
-            @Value("${app.rabbitmq.exchange.output:mecanicadm-finance-api-output}") String exchangeName) {
+            @Value("${app.rabbitmq.exchange.output:finance-output}") String exchangeName) {
         return new HeadersExchange(exchangeName, true, false);
     }
 
     @Bean
-    public Queue budgetQueue(@Value("${app.rabbitmq.queues.budget:budget}") String queueName) {
-        return new Queue(queueName, true);
+    public DirectExchange financeDeadLetterExchange(
+            @Value("${app.rabbitmq.exchange.dead-letter:finance-dlx}") String exchangeName) {
+        return new DirectExchange(exchangeName, true, false);
+    }
+
+    @Bean
+    public Queue budgetQueue(
+            @Value("${app.rabbitmq.queues.budget:budget}") String queueName,
+            @Value("${app.rabbitmq.exchange.dead-letter:finance-dlx}") String deadLetterExchange) {
+        return QueueBuilder.durable(queueName)
+                .deadLetterExchange(deadLetterExchange)
+                .deadLetterRoutingKey(queueName)
+                .build();
+    }
+
+    @Bean
+    public Queue budgetDeadLetterQueue(
+            @Value("${app.rabbitmq.queues.budget-dlq:budget.dlq}") String queueName) {
+        return QueueBuilder.durable(queueName).build();
+    }
+
+    @Bean
+    public Binding budgetDeadLetterBinding(Queue budgetDeadLetterQueue,
+                                           DirectExchange financeDeadLetterExchange,
+                                           @Value("${app.rabbitmq.queues.budget:budget}") String routingKey) {
+        return BindingBuilder.bind(budgetDeadLetterQueue).to(financeDeadLetterExchange).with(routingKey);
     }
 
     @Bean
@@ -69,10 +96,11 @@ public class RabbitConfig {
 
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
+            SimpleRabbitListenerContainerFactoryConfigurer configurer,
             ConnectionFactory connectionFactory,
             Jackson2JsonMessageConverter jacksonMessageConverter) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
-        factory.setConnectionFactory(connectionFactory);
+        configurer.configure(factory, connectionFactory);
         factory.setMessageConverter(jacksonMessageConverter);
         factory.setDefaultRequeueRejected(false);
         return factory;

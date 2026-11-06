@@ -40,6 +40,12 @@ spring:
       simple:
         acknowledge-mode: auto
         default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: "${RABBITMQ_RETRY_MAX_ATTEMPTS:5}"
+          initial-interval: "${RABBITMQ_RETRY_INITIAL_INTERVAL:1s}"
+          multiplier: "${RABBITMQ_RETRY_MULTIPLIER:2}"
+          max-interval: "${RABBITMQ_RETRY_MAX_INTERVAL:30s}"
 
 server:
   servlet:
@@ -101,10 +107,16 @@ app:
     processing-timeout-seconds: "${OUTBOX_PROCESSING_TIMEOUT_SECONDS:60}"
     retention-days: "${OUTBOX_RETENTION_DAYS:30}"
     cleanup-cron: "${OUTBOX_CLEANUP_CRON:0 0 3 * * *}"
+  inbox:
+    enabled: "${INBOX_ENABLED:true}"
+    retention-days: "${INBOX_RETENTION_DAYS:30}"
+    cleanup-cron: "${INBOX_CLEANUP_CRON:0 30 3 * * *}"
   rabbitmq:
     exchange:
-      output: "${RABBITMQ_EXCHANGE_OUTPUT:mecanicadm-finance-api-output}"
+      output: "${RABBITMQ_EXCHANGE_OUTPUT:finance-output}"
+      dead-letter: "${RABBITMQ_EXCHANGE_DEAD_LETTER:finance-dlx}"
     queues:
       budget: "${RABBITMQ_QUEUE_BUDGET:budget}"
+      budget-dlq: "${RABBITMQ_QUEUE_BUDGET_DLQ:budget.dlq}"
     headers:
       event-type: "${RABBITMQ_HEADER_EVENT_TYPE:event-type}"
