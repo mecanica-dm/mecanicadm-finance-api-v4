@@ -60,4 +60,10 @@ public class PaymentException {
             super("payment.provider.error", status, detail);
         }
     }
+
+    public static class PaymentNotFound extends DomainExceptionCore {
+        public PaymentNotFound() {
+            super("payment.not.found", 404);
+        }
+    }
 }
