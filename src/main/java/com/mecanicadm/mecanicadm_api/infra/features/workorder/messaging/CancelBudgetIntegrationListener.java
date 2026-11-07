@@ -21,12 +21,7 @@ public class CancelBudgetIntegrationListener {
     public void onMessage(CancelBudgetIntegrationCommand command) {
         logger.info("Recebido CancelBudgetIntegrationCommand para a OS {}", command.workOrderId());
 
-        try {
-            cancelWorkOrderBudgetUseCase.execute(
-                    new CancelWorkOrderBudgetCommand(command.workOrderId()));
-        } catch (Exception e) {
-            logger.error("Erro ao processar CancelBudgetIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
-        }
+        cancelWorkOrderBudgetUseCase.execute(
+                new CancelWorkOrderBudgetCommand(command.workOrderId()));
     }
 }

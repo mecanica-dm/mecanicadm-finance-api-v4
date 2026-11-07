@@ -11,34 +11,34 @@ o que dificultava a evolução do contrato e não permitia combinar critérios d
 
 ## 2. Decisão
 
-A exchange `mecanicadm-finance-api-output` passa a ser do tipo `headers`, com um único header de roteamento:
+A exchange `finance-output` passa a ser do tipo `headers`, com um único header de roteamento:
 
-| Item | Valor |
-| --- | --- |
-| Exchange | `mecanicadm-finance-api-output` |
-| Tipo | `headers` (durável, não autodeletável) |
-| Fila | `budget` |
-| Header | `event-type` (configurável por `RABBITMQ_HEADER_EVENT_TYPE`) |
-| Match | `x-match = all` |
-| Routing key no publish | vazia |
+| Item                   | Valor                                                        |
+|------------------------|--------------------------------------------------------------|
+| Exchange               | `finance-output`                                             |
+| Tipo                   | `headers` (durável, não autodeletável)                       |
+| Fila                   | `budget`                                                     |
+| Header                 | `event-type` (configurável por `RABBITMQ_HEADER_EVENT_TYPE`) |
+| Match                  | `x-match = all`                                              |
+| Routing key no publish | vazia                                                        |
 
 Os valores de `event-type` são o nome simples da classe do evento, obtido por `getClass().getSimpleName()`.
 Não existe enum centralizando os valores: o contrato é a própria classe do evento.
 
-| Evento | Valor do header |
-| --- | --- |
-| `BudgetApprovedEvent` | `BudgetApprovedEvent` |
-| `BudgetCanceledEvent` | `BudgetCanceledEvent` |
-| `BudgetChangesRequestedEvent` | `BudgetChangesRequestedEvent` |
-| `BudgetExpiredEvent` | `BudgetExpiredEvent` |
-| `BudgetGeneratedEvent` | `BudgetGeneratedEvent` |
-| `BudgetRejectedEvent` | `BudgetRejectedEvent` |
-| `BudgetSentForDecisionEvent` | `BudgetSentForDecisionEvent` |
+| Evento                             | Valor do header                    |
+|------------------------------------|------------------------------------|
+| `BudgetApprovedEvent`              | `BudgetApprovedEvent`              |
+| `BudgetCanceledEvent`              | `BudgetCanceledEvent`              |
+| `BudgetChangesRequestedEvent`      | `BudgetChangesRequestedEvent`      |
+| `BudgetExpiredEvent`               | `BudgetExpiredEvent`               |
+| `BudgetGeneratedEvent`             | `BudgetGeneratedEvent`             |
+| `BudgetRejectedEvent`              | `BudgetRejectedEvent`              |
+| `BudgetSentForDecisionEvent`       | `BudgetSentForDecisionEvent`       |
 | `BudgetSentForDecisionFailedEvent` | `BudgetSentForDecisionFailedEvent` |
-| `BudgetUpdatedEvent` | `BudgetUpdatedEvent` |
-| `WorkOrderCreatedEvent` | `WorkOrderCreatedEvent` |
+| `BudgetUpdatedEvent`               | `BudgetUpdatedEvent`               |
+| `WorkOrderCreatedEvent`            | `WorkOrderCreatedEvent`            |
 | `GenerateBudgetIntegrationCommand` | `GenerateBudgetIntegrationCommand` |
-| `CancelBudgetIntegrationCommand` | `CancelBudgetIntegrationCommand` |
+| `CancelBudgetIntegrationCommand`   | `CancelBudgetIntegrationCommand`   |
 
 Todo evento implementa `MessageHeader` (`messageId`, `workOrderId`, `ocurredAt`, `eventType`). O método
 `eventType()` tem implementação padrão que retorna `getClass().getSimpleName()`, e o publisher publica esse
@@ -57,7 +57,8 @@ valor no header configurado. Os bindings e o consumer referenciam as classes dir
 
 1. Congelar produtores e consumidores da exchange.
 2. Drenar a fila `budget` (mensagens antigas não possuem o header).
-3. Apagar a exchange: `rabbitmqctl delete_exchange mecanicadm-finance-api-output`.
+3. Apagar a exchange: `rabbitmqctl delete_exchange finance-output`.
 4. Subir a nova versão; o `RabbitAdmin` declara a exchange `headers` e os bindings.
-5. Validar com `rabbitmqctl list_exchanges name type` e `rabbitmqctl list_bindings source_name destination_name arguments`.
+5. Validar com `rabbitmqctl list_exchanges name type` e
+   `rabbitmqctl list_bindings source_name destination_name arguments`.
 6. Atualizar os demais serviços na mesma janela.

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class RabbitEventSenderTest {
 
-    private static final String EXCHANGE = "mecanicadm-finance-api-output";
+    private static final String EXCHANGE = "finance-output";
     private static final String EVENT_TYPE_HEADER = "event-type";
 
     @Mock

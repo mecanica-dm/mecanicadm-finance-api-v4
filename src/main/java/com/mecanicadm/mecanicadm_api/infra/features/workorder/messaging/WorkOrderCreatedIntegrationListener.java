@@ -26,22 +26,17 @@ public class WorkOrderCreatedIntegrationListener {
                 event.workOrderId(), event.totalPrice(),
                 sizeOf(event.materialItems()), sizeOf(event.laborItems()));
 
-        try {
-            createWorkOrderBudgetUseCase.execute(new CreateWorkOrderBudgetCommand(
-                    event.workOrderId(),
-                    event.totalPrice(),
-                    event.status(),
-                    event.observation(),
-                    event.description(),
-                    event.client(),
-                    event.vehicle(),
-                    event.materialItems(),
-                    event.laborItems()
-            ));
-        } catch (Exception e) {
-            logger.error("Erro ao processar WorkOrderCreatedEvent para a OS {}: {}",
-                    event.workOrderId(), e.getMessage(), e);
-        }
+        createWorkOrderBudgetUseCase.execute(new CreateWorkOrderBudgetCommand(
+                event.workOrderId(),
+                event.totalPrice(),
+                event.status(),
+                event.observation(),
+                event.description(),
+                event.client(),
+                event.vehicle(),
+                event.materialItems(),
+                event.laborItems()
+        ));
     }
 
     private int sizeOf(List<?> items) {
