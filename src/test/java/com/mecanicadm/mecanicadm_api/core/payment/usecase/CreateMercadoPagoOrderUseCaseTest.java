@@ -51,6 +51,8 @@ class CreateMercadoPagoOrderUseCaseTest {
     private MercadoPagoOrderGateway orderGateway;
     @Mock
     private PaymentGateway paymentGateway;
+    @Mock
+    private PaymentOrderEventService paymentOrderEventService;
 
     private CardData defaultCard;
 
@@ -212,6 +214,10 @@ class CreateMercadoPagoOrderUseCaseTest {
 
         assertSame(expectedOrder, result.providerResponse());
 
+        UUID workOrderId = UUID.fromString(idempotencyKey);
+        verify(paymentOrderEventService).publishLinkGenerated(any(Payment.class), eq(workOrderId));
+        verify(paymentOrderEventService).publishOutcome(any(Payment.class), eq(workOrderId));
+
         ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentGateway).save(captor.capture());
 
@@ -226,6 +232,30 @@ class CreateMercadoPagoOrderUseCaseTest {
         assertEquals("visa", payment.paymentMethodId());
         assertEquals("test_payer@example.com", payment.payerEmail());
         assertSame(expectedOrder, payment.providerResponse());
+    }
+
+    @Test
+    @DisplayName("Deve publicar falha na geração do link quando o Mercado Pago retornar erro")
+    void shouldPublishLinkGenerationFailedWhenProviderFails() {
+        CreateMercadoPagoOrderUseCase useCase = useCaseWith(new MercadoPagoCredentials(
+                ACCESS_TOKEN, PUBLIC_KEY, null, null));
+        String idempotencyKey = UUID.randomUUID().toString();
+        UUID workOrderId = UUID.randomUUID();
+        CreateMercadoPagoOrderCommand command = new CreateMercadoPagoOrderCommand(
+                idempotencyKey, workOrderId.toString(), null, null, null,
+                null, null, null, null, null, null);
+
+        when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+                .thenThrow(new PaymentException.MercadoPagoProviderError(502, "provider unavailable"));
+
+        assertThrows(PaymentException.MercadoPagoProviderError.class, () -> useCase.execute(command));
+
+        verify(paymentOrderEventService).publishLinkGenerationFailed(
+                workOrderId, workOrderId.toString(), "provider unavailable");
+        verify(paymentOrderEventService, never()).publishLinkGenerated(any(), any());
+        verify(paymentOrderEventService, never()).publishOutcome(any(), any());
+        verify(paymentGateway, never()).save(any());
     }
 
     @Test
@@ -282,7 +312,14 @@ class CreateMercadoPagoOrderUseCaseTest {
 
     private CreateMercadoPagoOrderUseCase useCaseWith(MercadoPagoCredentials credentials) {
         return new CreateMercadoPagoOrderUseCase(
-                generateTokenUseCase, cardTokenGateway, orderGateway, paymentGateway, credentials, defaultCard);
+                generateTokenUseCase,
+                cardTokenGateway,
+                orderGateway,
+                paymentGateway,
+                credentials,
+                defaultCard,
+                paymentOrderEventService
+        );
     }
 
     private CreateMercadoPagoOrderCommand command(String idempotencyKey, CardData card) {

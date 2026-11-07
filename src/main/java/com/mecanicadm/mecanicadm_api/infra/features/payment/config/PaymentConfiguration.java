@@ -9,6 +9,8 @@ import com.mecanicadm.mecanicadm_api.core.payment.domain.port.PaymentGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.CreateMercadoPagoOrderUseCase;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.GenerateMercadoPagoTokenUseCase;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
+import com.mecanicadm.mecanicadm_api.core.payment.usecase.PaymentOrderEventService;
+import com.mecanicadm.mecanicadm_api.core.shared.domain.port.EventPublisher;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,12 +25,18 @@ public class PaymentConfiguration {
     }
 
     @Bean
+    public PaymentOrderEventService paymentOrderEventService(EventPublisher eventPublisher) {
+        return new PaymentOrderEventService(eventPublisher);
+    }
+
+    @Bean
     public CreateMercadoPagoOrderUseCase createMercadoPagoOrderUseCase(
             GenerateMercadoPagoTokenUseCase generateTokenUseCase,
             MercadoPagoCardTokenGateway cardTokenGateway,
             MercadoPagoOrderGateway orderGateway,
             PaymentGateway paymentGateway,
-            MercadoPagoProperties properties) {
+            MercadoPagoProperties properties,
+            PaymentOrderEventService paymentOrderEventService) {
 
         MercadoPagoCredentials credentials = new MercadoPagoCredentials(
                 properties.getAccessToken(),
@@ -54,7 +62,8 @@ public class PaymentConfiguration {
                 orderGateway,
                 paymentGateway,
                 credentials,
-                cardData
+                cardData,
+                paymentOrderEventService
         );
     }
 

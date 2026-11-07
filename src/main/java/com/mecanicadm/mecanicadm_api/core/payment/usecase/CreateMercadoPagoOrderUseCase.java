@@ -11,10 +11,13 @@ import com.mecanicadm.mecanicadm_api.core.payment.domain.port.MercadoPagoOrderGa
 import com.mecanicadm.mecanicadm_api.core.payment.domain.port.PaymentGateway;
 import com.mecanicadm.mecanicadm_api.core.payment.exception.PaymentException;
 import com.mecanicadm.mecanicadm_api.core.payment.usecase.command.CreateMercadoPagoOrderCommand;
+import com.mecanicadm.mecanicadm_api.shared.exception.DomainExceptionCore;
 import com.mecanicadm.mecanicadm_api.shared.usecase.UseCase;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.UUID;
 
 public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoOrderCommand, Payment> {
 
@@ -36,22 +39,26 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
     private final PaymentGateway paymentGateway;
     private final MercadoPagoCredentials credentials;
     private final CardData defaultCard;
+    private final PaymentOrderEventService paymentOrderEventService;
 
     public CreateMercadoPagoOrderUseCase(GenerateMercadoPagoTokenUseCase generateTokenUseCase,
                                          MercadoPagoCardTokenGateway cardTokenGateway,
                                          MercadoPagoOrderGateway orderGateway,
                                          PaymentGateway paymentGateway,
                                          MercadoPagoCredentials credentials,
-                                         CardData defaultCard) {
+                                         CardData defaultCard,
+                                         PaymentOrderEventService paymentOrderEventService) {
         this.generateTokenUseCase = generateTokenUseCase;
         this.cardTokenGateway = cardTokenGateway;
         this.orderGateway = orderGateway;
         this.paymentGateway = paymentGateway;
         this.credentials = credentials;
         this.defaultCard = defaultCard;
+        this.paymentOrderEventService = paymentOrderEventService;
     }
 
     @Override
+    @Transactional
     public Payment execute(CreateMercadoPagoOrderCommand command) {
         validateIdempotencyKey(command.idempotencyKey());
 
@@ -70,40 +77,53 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
         String paymentMethodId = valueOrDefault(command.paymentMethodId(), DEFAULT_PAYMENT_METHOD_ID);
         String paymentMethodType = valueOrDefault(command.paymentMethodType(), DEFAULT_PAYMENT_METHOD_TYPE);
         int installments = resolveInstallments(command.installments());
+        UUID workOrderId = resolveWorkOrderId(externalReference);
 
-        AuthToken authToken = resolveAuthToken();
-        String publicKey = resolvePublicKey(authToken);
-        CardData card = resolveCard(command.card());
-        String cardToken = cardTokenGateway.createCardToken(card, publicKey);
+        Payment payment;
+        try {
+            AuthToken authToken = resolveAuthToken();
+            String publicKey = resolvePublicKey(authToken);
+            CardData card = resolveCard(command.card());
+            String cardToken = cardTokenGateway.createCardToken(card, publicKey);
 
-        if (cardToken == null || cardToken.isBlank()) {
-            throw new PaymentException.PaymentCardTokenNotGenerated();
+            if (cardToken == null || cardToken.isBlank()) {
+                throw new PaymentException.PaymentCardTokenNotGenerated();
+            }
+
+            MercadoPagoOrderData orderData = new MercadoPagoOrderData(
+                    externalReference,
+                    description,
+                    totalAmount,
+                    payerEmail,
+                    payerFirstName,
+                    payerLastName,
+                    paymentMethodId,
+                    paymentMethodType,
+                    cardToken,
+                    installments
+            );
+
+            MercadoPagoOrder order = orderGateway.createOrder(
+                    orderData, authToken.getAccessToken(), command.idempotencyKey());
+
+            payment = paymentGateway.save(Payment.create(
+                    externalReference,
+                    command.idempotencyKey(),
+                    amount,
+                    installments,
+                    paymentMethodId,
+                    payerEmail,
+                    order
+            ));
+        } catch (RuntimeException ex) {
+            paymentOrderEventService.publishLinkGenerationFailed(
+                    workOrderId, externalReference, resolveFailureReason(ex));
+            throw ex;
         }
 
-        MercadoPagoOrderData orderData = new MercadoPagoOrderData(
-                externalReference,
-                description,
-                totalAmount,
-                payerEmail,
-                payerFirstName,
-                payerLastName,
-                paymentMethodId,
-                paymentMethodType,
-                cardToken,
-                installments
-        );
-
-        MercadoPagoOrder order = orderGateway.createOrder(orderData, authToken.getAccessToken(), command.idempotencyKey());
-
-        return paymentGateway.save(Payment.create(
-                externalReference,
-                command.idempotencyKey(),
-                amount,
-                installments,
-                paymentMethodId,
-                payerEmail,
-                order
-        ));
+        paymentOrderEventService.publishLinkGenerated(payment, workOrderId);
+        paymentOrderEventService.publishOutcome(payment, workOrderId);
+        return payment;
     }
 
     private AuthToken resolveAuthToken() {
@@ -148,6 +168,29 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
         return sanitized.length() > MAX_EXTERNAL_REFERENCE_LENGTH
                 ? sanitized.substring(0, MAX_EXTERNAL_REFERENCE_LENGTH)
                 : sanitized;
+    }
+
+    private UUID resolveWorkOrderId(String externalReference) {
+        if (externalReference == null || externalReference.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(externalReference);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String resolveFailureReason(RuntimeException exception) {
+        if (exception instanceof DomainExceptionCore domainException) {
+            Object[] args = domainException.getArgs();
+            if (args != null && args.length > 0 && args[0] != null && !args[0].toString().isBlank()) {
+                return args[0].toString();
+            }
+        }
+
+        String message = exception.getMessage();
+        return message == null || message.isBlank() ? exception.getClass().getSimpleName() : message;
     }
 
     private BigDecimal resolveTotalAmount(BigDecimal totalAmount) {
