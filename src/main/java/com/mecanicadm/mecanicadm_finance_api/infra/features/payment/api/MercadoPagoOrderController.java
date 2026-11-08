@@ -6,6 +6,7 @@ import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.CreateMercadoP
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.openapi.MercadoPagoOrderOpenApi;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.CreateOrderRequest;
+import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.SimulateOrderRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,8 +22,10 @@ import java.net.URI;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/v1/payments/orders")
+@RequestMapping(MercadoPagoOrderController.BASE_PATH)
 public class MercadoPagoOrderController implements MercadoPagoOrderOpenApi {
+
+    public static final String BASE_PATH = "/v1/payments/orders";
 
     private final CreateMercadoPagoOrderUseCase createOrderUseCase;
     private final GetMercadoPagoPaymentUseCase getPaymentUseCase;
@@ -46,6 +49,18 @@ public class MercadoPagoOrderController implements MercadoPagoOrderOpenApi {
         Payment payment = createOrderUseCase.execute(request.toCommand(resolvedIdempotencyKey));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
+                .buildAndExpand(payment.id())
+                .toUri();
+
+        return ResponseEntity.created(location).body(payment.providerResponse());
+    }
+
+    @Override
+    @PostMapping("/simulate")
+    public ResponseEntity<MercadoPagoOrder> simulate(@Valid @RequestBody SimulateOrderRequest request) {
+        Payment payment = createOrderUseCase.execute(request.toCommand(UUID.randomUUID().toString()));
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path(BASE_PATH + "/{id}")
                 .buildAndExpand(payment.id())
                 .toUri();
 

@@ -6,6 +6,7 @@ import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.CreateMercadoP
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.command.CreateMercadoPagoOrderCommand;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.CreateOrderRequest;
+import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.SimulateOrderRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -88,6 +90,33 @@ class MercadoPagoOrderControllerTest {
                 ArgumentCaptor.forClass(CreateMercadoPagoOrderCommand.class);
         verify(createOrderUseCase).execute(captor.capture());
         assertNotNull(captor.getValue().idempotencyKey());
+    }
+
+    @Test
+    @DisplayName("Deve simular pedido usando apenas a referência externa e retornar 201")
+    void shouldSimulateOrderUsingOnlyExternalReference() {
+        MercadoPagoOrder order = new MercadoPagoOrder();
+        when(createOrderUseCase.execute(any())).thenReturn(payment(order));
+
+        var response = controller.simulate(new SimulateOrderRequest("work-order-id"));
+
+        assertEquals(201, response.getStatusCode().value());
+        assertSame(order, response.getBody());
+        assertEquals("/v1/payments/orders/" + paymentId, response.getHeaders().getLocation().getPath());
+
+        ArgumentCaptor<CreateMercadoPagoOrderCommand> captor =
+                ArgumentCaptor.forClass(CreateMercadoPagoOrderCommand.class);
+        verify(createOrderUseCase).execute(captor.capture());
+
+        CreateMercadoPagoOrderCommand command = captor.getValue();
+        assertEquals("work-order-id", command.externalReference());
+        assertNotNull(command.idempotencyKey());
+        assertNull(command.description());
+        assertNull(command.totalAmount());
+        assertNull(command.payerEmail());
+        assertNull(command.installments());
+        assertNull(command.paymentMethodId());
+        assertNull(command.card());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.openapi
 
 import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.MercadoPagoOrder;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.CreateOrderRequest;
+import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.SimulateOrderRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,6 +31,15 @@ public interface MercadoPagoOrderOpenApi {
             @Parameter(description = "Chave de idempotência. Quando não informada, uma chave é gerada automaticamente.")
             @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request);
+
+    @Operation(summary = "Simular pedido de pagamento",
+            description = "Cria um pedido de pagamento de teste informando apenas a referência externa (workOrderId). "
+                    + "Descrição, valor, pagador, parcelas e cartão são simulados automaticamente pelo fluxo.")
+    @ApiResponse(responseCode = "201", description = "Pedido simulado com sucesso")
+    @ApiResponse(responseCode = "400", description = "Dados inválidos", content = @Content)
+    @ApiResponse(responseCode = "502", description = "Erro na integração com o Mercado Pago", content = @Content)
+    ResponseEntity<MercadoPagoOrder> simulate(
+            @Valid @RequestBody SimulateOrderRequest request);
 
     @Operation(summary = "Consultar pedido de pagamento",
             description = "Retorna o pedido de pagamento persistido a partir do identificador interno.")
