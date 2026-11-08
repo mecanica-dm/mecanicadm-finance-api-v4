@@ -1,0 +1,107 @@
+{
+  "rabbit_version": "4.3.6",
+  "rabbitmq_version": "4.3.6",
+  "product_name": "RabbitMQ",
+  "product_version": "4.3.6",
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [],
+  "queues": [
+    {
+      "name": "budget",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "exclusive": false,
+      "arguments": {
+        "x-dead-letter-exchange": "finance-dlx",
+        "x-dead-letter-routing-key": "budget"
+      }
+    },
+    {
+      "name": "budget.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "exclusive": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "finance-output",
+      "vhost": "/",
+      "type": "headers",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "finance-input",
+      "vhost": "/",
+      "type": "headers",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "finance-dlx",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "finance-dlx",
+      "vhost": "/",
+      "destination": "budget.dlq",
+      "destination_type": "queue",
+      "routing_key": "budget",
+      "arguments": {}
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "budget",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "GenerateBudgetIntegrationCommand"
+      }
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "budget",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "CancelBudgetIntegrationCommand"
+      }
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "budget",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "WorkOrderCreatedEvent"
+      }
+    }
+  ]
+}
