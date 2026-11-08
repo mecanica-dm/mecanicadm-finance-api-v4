@@ -4,11 +4,8 @@ import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.MercadoPagoOrde
 import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.Payment;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.CreateMercadoPagoOrderUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.GetMercadoPagoPaymentUseCase;
+import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.openapi.MercadoPagoOrderOpenApi;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.CreateOrderRequest;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,10 +22,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/v1/payments/orders")
-@Tag(name = "Pagamentos", description = "Endpoints para pagamentos com o Mercado Pago")
-public class MercadoPagoOrderController {
-
-    private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
+public class MercadoPagoOrderController implements MercadoPagoOrderOpenApi {
 
     private final CreateMercadoPagoOrderUseCase createOrderUseCase;
     private final GetMercadoPagoPaymentUseCase getPaymentUseCase;
@@ -39,15 +33,9 @@ public class MercadoPagoOrderController {
         this.getPaymentUseCase = getPaymentUseCase;
     }
 
+    @Override
     @PostMapping
-    @Operation(summary = "Criar pedido de pagamento",
-            description = "Cria um pedido de pagamento com cartão de crédito no Mercado Pago. "
-                    + "Quando os dados do cartão não são enviados, são utilizados os valores padrão de teste.")
-    @ApiResponse(responseCode = "201", description = "Pedido criado com sucesso")
-    @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    @ApiResponse(responseCode = "502", description = "Erro na integração com o Mercado Pago")
     public ResponseEntity<MercadoPagoOrder> createOrder(
-            @Parameter(description = "Chave de idempotência. Quando não informada, uma chave é gerada automaticamente.")
             @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request) {
 
@@ -64,11 +52,8 @@ public class MercadoPagoOrderController {
         return ResponseEntity.created(location).body(payment.providerResponse());
     }
 
+    @Override
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar pedido de pagamento",
-            description = "Retorna o pedido de pagamento persistido a partir do identificador interno.")
-    @ApiResponse(responseCode = "200", description = "Pedido encontrado")
-    @ApiResponse(responseCode = "404", description = "Pedido não encontrado")
     public ResponseEntity<MercadoPagoOrder> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(getPaymentUseCase.execute(id).providerResponse());
     }

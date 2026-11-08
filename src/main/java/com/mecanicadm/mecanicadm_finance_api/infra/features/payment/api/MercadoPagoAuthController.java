@@ -1,8 +1,8 @@
 package com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api;
 
-
 import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.AuthToken;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.usecase.GenerateMercadoPagoTokenUseCase;
+import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.openapi.MercadoPagoAuthOpenApi;
 import com.mecanicadm.mecanicadm_finance_api.infra.features.payment.api.request.TokenRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/payments/auth")
-public class MercadoPagoAuthController {
+public class MercadoPagoAuthController implements MercadoPagoAuthOpenApi {
 
     private final GenerateMercadoPagoTokenUseCase generateTokenUseCase;
 
@@ -20,6 +20,7 @@ public class MercadoPagoAuthController {
         this.generateTokenUseCase = generateTokenUseCase;
     }
 
+    @Override
     @PostMapping("/token")
     public ResponseEntity<AuthToken> generateToken(@RequestBody TokenRequest request) {
         AuthToken token = generateTokenUseCase.execute(request);
