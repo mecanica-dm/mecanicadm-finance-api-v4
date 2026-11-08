@@ -23,8 +23,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-admin}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -64,9 +64,10 @@ services:
       - MAIL_PASSWORD=${MAIL_PASSWORD:-password}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-admin}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-admin}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
       - RABBITMQ_EXCHANGE_OUTPUT=${RABBITMQ_EXCHANGE_OUTPUT:-finance-output}
+      - RABBITMQ_EXCHANGE_INPUT=${RABBITMQ_EXCHANGE_INPUT:-finance-input}
       - RABBITMQ_EXCHANGE_DEAD_LETTER=${RABBITMQ_EXCHANGE_DEAD_LETTER:-finance-dlx}
       - RABBITMQ_QUEUE_BUDGET=${RABBITMQ_QUEUE_BUDGET:-budget}
       - RABBITMQ_QUEUE_BUDGET_DLQ=${RABBITMQ_QUEUE_BUDGET_DLQ:-budget.dlq}

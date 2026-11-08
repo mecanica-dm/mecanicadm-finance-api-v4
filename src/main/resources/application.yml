@@ -34,8 +34,8 @@ spring:
   rabbitmq:
     host: "${RABBITMQ_HOST:localhost}"
     port: "${RABBITMQ_PORT:5672}"
-    username: "${RABBITMQ_USER:admin}"
-    password: "${RABBITMQ_PASSWORD:admin}"
+    username: "${RABBITMQ_USER:guest}"
+    password: "${RABBITMQ_PASSWORD:guest}"
     listener:
       simple:
         acknowledge-mode: auto
@@ -114,6 +114,7 @@ app:
   rabbitmq:
     exchange:
       output: "${RABBITMQ_EXCHANGE_OUTPUT:finance-output}"
+      input: "${RABBITMQ_EXCHANGE_INPUT:finance-input}"
       dead-letter: "${RABBITMQ_EXCHANGE_DEAD_LETTER:finance-dlx}"
     queues:
       budget: "${RABBITMQ_QUEUE_BUDGET:budget}"
