@@ -34,7 +34,6 @@ public class PaymentOrderEventService {
                 payment.id(),
                 resolvePaymentLink(payment),
                 payment.amount(),
-                null,
                 null
         ));
     }
@@ -48,7 +47,6 @@ public class PaymentOrderEventService {
                     payment.id(),
                     payment.mercadoPagoPaymentId(),
                     payment.amount(),
-                    null,
                     null
             ));
             return;
@@ -61,7 +59,6 @@ public class PaymentOrderEventService {
                     payment.mercadoPagoPaymentId(),
                     payment.amount(),
                     resolveFailureReason(payment),
-                    null,
                     null
             ));
         }
@@ -73,7 +70,6 @@ public class PaymentOrderEventService {
                 workOrderId,
                 externalReference,
                 reason,
-                null,
                 null
         ));
     }

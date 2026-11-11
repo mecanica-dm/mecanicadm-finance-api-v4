@@ -92,7 +92,7 @@ class BudgetQueueListenerTest {
     void shouldDispatchWorkOrderCreatedByHeader() {
         WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
                 UUID.randomUUID(), BigDecimal.TEN, WorkOrderBudgetStatus.PENDING, "obs",
-                "description", null, null, List.of(), List.of(), null, null);
+                "description", null, null, List.of(), List.of(), null);
         when(messageConverter.fromMessage(any(Message.class))).thenReturn(event);
         executeHandler();
 
@@ -172,10 +172,8 @@ class BudgetQueueListenerTest {
     @DisplayName("Deve usar o messageId do AMQP como chave da inbox")
     void shouldResolveMessageIdFromAmqpHeader() {
         UUID messageId = UUID.randomUUID();
-        UUID aggregateId = UUID.randomUUID();
         Message message = messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName());
         message.getMessageProperties().setMessageId(messageId.toString());
-        message.getMessageProperties().setHeader("aggregate-id", aggregateId.toString());
 
         listener.onMessage(message);
 
@@ -186,7 +184,19 @@ class BudgetQueueListenerTest {
         assertThat(entry.messageId()).isEqualTo(messageId);
         assertThat(entry.consumer()).isEqualTo(CONSUMER);
         assertThat(entry.eventType()).isEqualTo(GenerateBudgetIntegrationCommand.class.getSimpleName());
-        assertThat(entry.aggregateId()).isEqualTo(aggregateId);
+    }
+
+    @Test
+    @DisplayName("Deve ignorar o header aggregate-id")
+    void shouldIgnoreAggregateIdHeader() {
+        Message message = messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName());
+        message.getMessageProperties().setHeader("aggregate-id", UUID.randomUUID().toString());
+
+        listener.onMessage(message);
+
+        ArgumentCaptor<InboxEntry> captor = ArgumentCaptor.forClass(InboxEntry.class);
+        verify(processInboundMessageUseCase).execute(captor.capture(), any(Runnable.class));
+        assertThat(captor.getValue().aggregateId()).isNull();
     }
 
     @Test

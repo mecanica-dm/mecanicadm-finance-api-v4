@@ -55,6 +55,5 @@ class RejeitarFinanceCommandServiceTest {
 
         assertThat(captor.getValue().eventType()).isEqualTo("FinanceCommandRejected");
         assertThat(captor.getValue().messageId()).isNotNull();
-        assertThat(captor.getValue().ocurredAt()).isNotNull();
     }
 }

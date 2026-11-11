@@ -123,3 +123,4 @@ app:
       payment-dlq: "${RABBITMQ_QUEUE_PAYMENT_DLQ:payment.dlq}"
     headers:
       event-type: "${RABBITMQ_HEADER_EVENT_TYPE:event-type}"
+      message-id: "${RABBITMQ_HEADER_MESSAGE_ID:message-id}"

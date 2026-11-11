@@ -15,8 +15,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,11 +38,9 @@ class MessageHeaderTest {
                 new BudgetSentForDecisionFailedEvent(WORK_ORDER_ID),
                 new BudgetUpdatedEvent(WORK_ORDER_ID, BigDecimal.TEN, "obs"));
 
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         events.forEach(event -> {
             assertThat(event.messageId()).isNotNull();
             assertThat(event.workOrderId()).isEqualTo(WORK_ORDER_ID);
-            assertThat(event.ocurredAt()).isNotNull().isBeforeOrEqualTo(now);
             assertThat(event.eventType()).isEqualTo(event.getClass().getSimpleName());
         });
     }
@@ -54,25 +50,22 @@ class MessageHeaderTest {
     void shouldGenerateDefaultHeaderForWorkOrderCreatedEvent() {
         WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
                 WORK_ORDER_ID, BigDecimal.TEN, WorkOrderBudgetStatus.PENDING, "obs",
-                "description", null, null, List.of(), List.of(), null, null);
+                "description", null, null, List.of(), List.of(), null);
 
         assertThat(event.messageId()).isNotNull();
-        assertThat(event.ocurredAt()).isNotNull();
         assertThat(event.workOrderId()).isEqualTo(WORK_ORDER_ID);
         assertThat(event.eventType()).isEqualTo(WorkOrderCreatedEvent.class.getSimpleName());
     }
 
     @Test
-    @DisplayName("Deve respeitar messageId e ocurredAt informados no WorkOrderCreatedEvent")
-    void shouldKeepInformedHeaderDataForWorkOrderCreatedEvent() {
+    @DisplayName("Deve respeitar messageId informado no WorkOrderCreatedEvent")
+    void shouldKeepInformedMessageIdForWorkOrderCreatedEvent() {
         UUID messageId = UUID.randomUUID();
-        ZonedDateTime occurredAt = ZonedDateTime.now(ZoneOffset.UTC).minusMinutes(5);
 
         WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
                 WORK_ORDER_ID, BigDecimal.TEN, WorkOrderBudgetStatus.APPROVED, "obs",
-                "description", null, null, List.of(), List.of(), messageId, occurredAt);
+                "description", null, null, List.of(), List.of(), messageId);
 
         assertThat(event.messageId()).isEqualTo(messageId);
-        assertThat(event.ocurredAt()).isEqualTo(occurredAt);
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 @Component
 public class RabbitEventSender {
@@ -16,13 +17,16 @@ public class RabbitEventSender {
     private final RabbitTemplate rabbitTemplate;
     private final String exchange;
     private final String eventTypeHeader;
+    private final String messageIdHeader;
 
     public RabbitEventSender(RabbitTemplate rabbitTemplate,
                              @Value("${app.rabbitmq.exchange.output:finance-output}") String exchange,
-                             @Value("${app.rabbitmq.headers.event-type:event-type}") String eventTypeHeader) {
+                             @Value("${app.rabbitmq.headers.event-type:event-type}") String eventTypeHeader,
+                             @Value("${app.rabbitmq.headers.message-id:message-id}") String messageIdHeader) {
         this.rabbitTemplate = rabbitTemplate;
         this.exchange = exchange;
         this.eventTypeHeader = eventTypeHeader;
+        this.messageIdHeader = messageIdHeader;
     }
 
     public void send(OutboxMessage message) {
@@ -31,11 +35,9 @@ public class RabbitEventSender {
         properties.setContentEncoding(StandardCharsets.UTF_8.name());
         properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
         properties.setMessageId(message.id().toString());
+        properties.setHeader(messageIdHeader, message.id().toString());
         properties.setHeader(eventTypeHeader, message.eventType());
-
-        if (message.aggregateId() != null) {
-            properties.setHeader("aggregate-id", message.aggregateId().toString());
-        }
+        properties.setTimestamp(Date.from(message.occurredAt()));
 
         Message amqpMessage = new Message(
                 message.payload().getBytes(StandardCharsets.UTF_8),

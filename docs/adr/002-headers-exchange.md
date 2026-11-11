@@ -42,10 +42,11 @@ Não existe enum centralizando os valores: o contrato é a própria classe do ev
 | `CancelBudgetIntegrationCommand`   | `CancelBudgetIntegrationCommand`   |
 | `GeneratePaymentIntegrationCommand` | `GeneratePaymentIntegrationCommand` |
 
-Todo evento implementa `MessageHeader` (`messageId`, `workOrderId`, `ocurredAt`, `eventType`). O método
+Todo evento implementa `MessageHeader` (`messageId`, `workOrderId`, `eventType`). O método
 `eventType()` tem implementação padrão que retorna `getClass().getSimpleName()`, e o publisher publica esse
 valor no header configurado. Os bindings e o consumer referenciam as classes diretamente
-(`Classe.class.getSimpleName()`).
+(`Classe.class.getSimpleName()`). O instante do evento não faz parte do contrato do evento: a outbox grava o
+`occurred_at` na publicação e o `RabbitEventSender` o envia como propriedade `timestamp` da mensagem AMQP.
 
 ## 3. Consequências
 

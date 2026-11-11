@@ -58,7 +58,7 @@ public class PaymentQueueListener {
                 messageId,
                 consumer,
                 eventType,
-                resolveAggregateId(message),
+                null,
                 Instant.now()
         );
 
@@ -116,19 +116,6 @@ public class PaymentQueueListener {
         System.arraycopy(prefix, 0, key, 0, prefix.length);
         System.arraycopy(body, 0, key, prefix.length, body.length);
         return key;
-    }
-
-    private UUID resolveAggregateId(Message message) {
-        String aggregateId = resolveHeader(message, "aggregate-id");
-        if (aggregateId == null || aggregateId.isBlank()) {
-            return null;
-        }
-
-        try {
-            return UUID.fromString(aggregateId);
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
     }
 
     private String resolveEventType(Message message) {

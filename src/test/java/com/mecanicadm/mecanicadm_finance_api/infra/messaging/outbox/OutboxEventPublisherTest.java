@@ -15,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,7 +59,7 @@ class OutboxEventPublisherTest {
         assertThat(saved.id()).isEqualTo(event.messageId());
         assertThat(saved.eventType()).isEqualTo(BudgetApprovedEvent.class.getSimpleName());
         assertThat(saved.aggregateId()).isEqualTo(workOrderId);
-        assertThat(saved.occurredAt()).isEqualTo(event.ocurredAt().toInstant());
+        assertThat(saved.occurredAt()).isNotNull();
         assertThat(saved.payload()).contains("\"workOrderId\":\"" + workOrderId + "\"");
         assertThat(meterRegistry.counter("outbox.messages.enqueued").count()).isEqualTo(1);
     }
@@ -120,11 +119,6 @@ class OutboxEventPublisherTest {
             @Override
             public UUID workOrderId() {
                 return UUID.randomUUID();
-            }
-
-            @Override
-            public ZonedDateTime ocurredAt() {
-                return ZonedDateTime.now();
             }
 
             @Override
