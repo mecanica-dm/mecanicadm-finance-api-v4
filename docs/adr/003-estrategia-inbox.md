@@ -17,7 +17,7 @@ mais de uma vez quando:
 - a aplicação cai depois do commit do banco e antes do `ack`;
 - duas instâncias consomem a mesma mensagem simultaneamente.
 
-Hoje o impacto é real em `WorkOrderCreatedEvent`: o `CreateWorkOrderBudgetUseCase` regrava o orçamento e publica um
+Hoje o impacto é real em `GenerateBudgetIntegrationCommand`: o `CreateWorkOrderBudgetUseCase` regrava o orçamento e publica um
 novo `BudgetGeneratedEvent`, gerando eventos duplicados para os demais serviços. `CalculateWorkOrderBudgetUseCase`
 possui o mesmo comportamento.
 
@@ -107,7 +107,6 @@ src/main/java/com/mecanicadm/mecanicadm_api/
 │       ├── BudgetQueueListener.java               # resolve messageId e usa a inbox (alterar)
 │       ├── GenerateBudgetIntegrationListener.java # remover catch que engole exceção (alterar)
 │       ├── CancelBudgetIntegrationListener.java   # remover catch que engole exceção (alterar)
-│       └── WorkOrderCreatedIntegrationListener.java # remover catch que engole exceção (alterar)
 └── resources/db/migration/
     └── V06__create_inbox_messages_table.sql       # nova migration
 ```
@@ -305,8 +304,7 @@ ela deve propagar até o proxy transacional para provocar o rollback.
 
 ### 6.1 Alteração obrigatória nos listeners de integração
 
-Remover o `try/catch` de `GenerateBudgetIntegrationListener`, `CancelBudgetIntegrationListener` e
-`WorkOrderCreatedIntegrationListener`. O log de erro e a decisão de retry passam a ser responsabilidade do container
+Remover o `try/catch` de `GenerateBudgetIntegrationListener` e `CancelBudgetIntegrationListener`. O log de erro e a decisão de retry passam a ser responsabilidade do container
 (não da regra de negócio).
 
 ```java

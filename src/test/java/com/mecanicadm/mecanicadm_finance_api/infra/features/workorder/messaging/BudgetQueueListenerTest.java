@@ -2,10 +2,9 @@ package com.mecanicadm.mecanicadm_finance_api.infra.features.workorder.messaging
 
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.InboxEntry;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.ProcessInboundMessageUseCase;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.CancelBudgetIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.GenerateBudgetIntegrationCommand;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderSnapshot;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +19,6 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,8 +42,6 @@ class BudgetQueueListenerTest {
     @Mock
     private CancelBudgetIntegrationListener cancelBudgetListener;
     @Mock
-    private WorkOrderCreatedIntegrationListener workOrderCreatedListener;
-    @Mock
     private ProcessInboundMessageUseCase processInboundMessageUseCase;
 
     private SimpleMeterRegistry meterRegistry;
@@ -55,22 +51,21 @@ class BudgetQueueListenerTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         listener = new BudgetQueueListener(messageConverter, generateBudgetListener,
-                cancelBudgetListener, workOrderCreatedListener, processInboundMessageUseCase,
+                cancelBudgetListener, processInboundMessageUseCase,
                 meterRegistry, CONSUMER, EVENT_TYPE_HEADER);
     }
 
     @Test
     @DisplayName("Deve direcionar mensagem de geração de orçamento pelo header")
     void shouldDispatchGenerateBudgetByHeader() {
-        GenerateBudgetIntegrationCommand command =
-                new GenerateBudgetIntegrationCommand(UUID.randomUUID(), BigDecimal.TEN);
+        GenerateBudgetIntegrationCommand command = generateCommand();
         when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
         executeHandler();
 
         listener.onMessage(messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName()));
 
         verify(generateBudgetListener).onMessage(command);
-        verifyNoInteractions(cancelBudgetListener, workOrderCreatedListener);
+        verifyNoInteractions(cancelBudgetListener);
         assertThat(meterRegistry.counter("inbox.messages.processed").count()).isEqualTo(1);
     }
 
@@ -84,29 +79,22 @@ class BudgetQueueListenerTest {
         listener.onMessage(messageWithEventType(CancelBudgetIntegrationCommand.class.getSimpleName()));
 
         verify(cancelBudgetListener).onMessage(command);
-        verifyNoInteractions(generateBudgetListener, workOrderCreatedListener);
+        verifyNoInteractions(generateBudgetListener);
     }
 
     @Test
-    @DisplayName("Deve direcionar WorkOrderCreatedEvent pelo header")
-    void shouldDispatchWorkOrderCreatedByHeader() {
-        WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
-                UUID.randomUUID(), BigDecimal.TEN, WorkOrderBudgetStatus.PENDING, "obs",
-                "description", null, null, List.of(), List.of(), null);
-        when(messageConverter.fromMessage(any(Message.class))).thenReturn(event);
-        executeHandler();
+    @DisplayName("Não deve direcionar o WorkOrderCreatedEvent legado")
+    void shouldIgnoreLegacyWorkOrderCreatedEvent() {
+        listener.onMessage(messageWithEventType("WorkOrderCreatedEvent"));
 
-        listener.onMessage(messageWithEventType(WorkOrderCreatedEvent.class.getSimpleName()));
-
-        verify(workOrderCreatedListener).onMessage(event);
-        verifyNoInteractions(generateBudgetListener, cancelBudgetListener);
+        verifyNoInteractions(messageConverter, generateBudgetListener,
+                cancelBudgetListener, processInboundMessageUseCase);
     }
 
     @Test
     @DisplayName("Deve ler header enviado como bytes")
     void shouldReadByteArrayHeader() {
-        GenerateBudgetIntegrationCommand command =
-                new GenerateBudgetIntegrationCommand(UUID.randomUUID(), BigDecimal.TEN);
+        GenerateBudgetIntegrationCommand command = generateCommand();
         when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
         executeHandler();
 
@@ -126,7 +114,7 @@ class BudgetQueueListenerTest {
         listener.onMessage(messageWithEventType(null));
 
         verifyNoInteractions(messageConverter, generateBudgetListener,
-                cancelBudgetListener, workOrderCreatedListener, processInboundMessageUseCase);
+                cancelBudgetListener, processInboundMessageUseCase);
     }
 
     @Test
@@ -138,7 +126,7 @@ class BudgetQueueListenerTest {
         listener.onMessage(new Message("{}".getBytes(StandardCharsets.UTF_8), properties));
 
         verifyNoInteractions(messageConverter, generateBudgetListener,
-                cancelBudgetListener, workOrderCreatedListener, processInboundMessageUseCase);
+                cancelBudgetListener, processInboundMessageUseCase);
     }
 
     @Test
@@ -150,7 +138,7 @@ class BudgetQueueListenerTest {
         listener.onMessage(messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName()));
 
         verifyNoInteractions(messageConverter, generateBudgetListener,
-                cancelBudgetListener, workOrderCreatedListener);
+                cancelBudgetListener);
         assertThat(meterRegistry.counter("inbox.messages.duplicated").count()).isEqualTo(1);
     }
 
@@ -218,6 +206,12 @@ class BudgetQueueListenerTest {
                     invocation.getArgument(1, Runnable.class).run();
                     return true;
                 });
+    }
+
+    private GenerateBudgetIntegrationCommand generateCommand() {
+        return new GenerateBudgetIntegrationCommand(
+                UUID.randomUUID(),
+                new WorkOrderSnapshot(BigDecimal.TEN, null, null, null, null, null, null, null));
     }
 
     private Message messageWithEventType(String eventType) {
