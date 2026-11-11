@@ -6,8 +6,6 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrd
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,13 +19,11 @@ public record WorkOrderUpdatedEvent(
         Vehicle vehicle,
         List<MaterialItem> materialItems,
         List<LaborItem> laborItems,
-        UUID messageId,
-        ZonedDateTime ocurredAt
+        UUID messageId
 ) implements MessageHeader {
 
     public WorkOrderUpdatedEvent {
         messageId = messageId != null ? messageId : UUID.randomUUID();
-        ocurredAt = ocurredAt != null ? ocurredAt : ZonedDateTime.now(ZoneOffset.UTC);
     }
 
     public record Client(

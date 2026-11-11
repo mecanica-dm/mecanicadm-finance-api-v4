@@ -56,7 +56,6 @@ class PaymentOrderEventServiceTest {
         assertThat(event.paymentLink()).isEqualTo("https://mercadopago/ticket");
         assertThat(event.amount()).isEqualByComparingTo(payment.amount());
         assertThat(event.messageId()).isNotNull();
-        assertThat(event.ocurredAt()).isNotNull();
     }
 
     @Test
@@ -118,7 +117,6 @@ class PaymentOrderEventServiceTest {
         assertThat(event.externalReference()).isEqualTo(externalReference);
         assertThat(event.reason()).isEqualTo("provider unavailable");
         assertThat(event.messageId()).isNotNull();
-        assertThat(event.ocurredAt()).isNotNull();
     }
 
     private Payment payment(String orderStatus, String statusDetail, String ticketUrl) {

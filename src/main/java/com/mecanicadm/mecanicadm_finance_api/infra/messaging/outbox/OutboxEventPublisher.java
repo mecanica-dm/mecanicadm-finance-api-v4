@@ -46,7 +46,7 @@ public class OutboxEventPublisher implements EventPublisher {
             throw new IllegalStateException("Event without messageId: " + event.getClass().getName());
         }
 
-        Instant occurredAt = event.ocurredAt() == null ? Instant.now() : event.ocurredAt().toInstant();
+        Instant occurredAt = Instant.now();
         String payload = serialize(event, eventType);
 
         outboxStore.save(new OutboxMessage(

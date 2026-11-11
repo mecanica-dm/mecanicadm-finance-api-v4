@@ -15,6 +15,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +27,7 @@ class RabbitEventSenderTest {
 
     private static final String EXCHANGE = "finance-output";
     private static final String EVENT_TYPE_HEADER = "event-type";
+    private static final String MESSAGE_ID_HEADER = "message-id";
 
     @Mock
     private RabbitTemplate rabbitTemplate;
@@ -34,7 +36,7 @@ class RabbitEventSenderTest {
 
     @BeforeEach
     void setUp() {
-        sender = new RabbitEventSender(rabbitTemplate, EXCHANGE, EVENT_TYPE_HEADER);
+        sender = new RabbitEventSender(rabbitTemplate, EXCHANGE, EVENT_TYPE_HEADER, MESSAGE_ID_HEADER);
     }
 
     @Test
@@ -42,8 +44,9 @@ class RabbitEventSenderTest {
     void shouldSendMessageWithHeaders() {
         UUID id = UUID.randomUUID();
         UUID aggregateId = UUID.randomUUID();
+        Instant occurredAt = Instant.now();
         OutboxMessage message = new OutboxMessage(
-                id, "BudgetApprovedEvent", aggregateId, "{\"workOrderId\":\"123\"}", Instant.now());
+                id, "BudgetApprovedEvent", aggregateId, "{\"workOrderId\":\"123\"}", occurredAt);
 
         sender.send(message);
 
@@ -59,19 +62,36 @@ class RabbitEventSenderTest {
         assertThat(properties.getMessageId()).isEqualTo(id.toString());
         assertThat(properties.getDeliveryMode()).isEqualTo(MessageDeliveryMode.PERSISTENT);
         assertThat((Object) properties.getHeader(EVENT_TYPE_HEADER)).isEqualTo("BudgetApprovedEvent");
-        assertThat((Object) properties.getHeader("aggregate-id")).isEqualTo(aggregateId.toString());
+        assertThat((Object) properties.getHeader(MESSAGE_ID_HEADER)).isEqualTo(id.toString());
+        assertThat(properties.getTimestamp()).isEqualTo(Date.from(occurredAt));
     }
 
     @Test
-    @DisplayName("Não deve incluir o header aggregate-id quando não houver agregado")
-    void shouldNotIncludeAggregateHeaderWhenMissing() {
+    @DisplayName("Não deve incluir o header aggregate-id")
+    void shouldNotIncludeAggregateHeader() {
+        UUID aggregateId = UUID.randomUUID();
         OutboxMessage message = new OutboxMessage(
-                UUID.randomUUID(), "BudgetApprovedEvent", null, "{}", Instant.now());
+                UUID.randomUUID(), "BudgetApprovedEvent", aggregateId, "{}", Instant.now());
 
         sender.send(message);
 
         ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
         verify(rabbitTemplate).send(eq(EXCHANGE), eq(""), captor.capture());
         assertThat((Object) captor.getValue().getMessageProperties().getHeader("aggregate-id")).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve incluir o header message-id mesmo quando não houver agregado")
+    void shouldIncludeMessageIdHeaderWhenAggregateIsMissing() {
+        UUID id = UUID.randomUUID();
+        OutboxMessage message = new OutboxMessage(
+                id, "BudgetApprovedEvent", null, "{}", Instant.now());
+
+        sender.send(message);
+
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(rabbitTemplate).send(eq(EXCHANGE), eq(""), captor.capture());
+        assertThat((Object) captor.getValue().getMessageProperties().getHeader(MESSAGE_ID_HEADER))
+                .isEqualTo(id.toString());
     }
 }

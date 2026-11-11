@@ -30,6 +30,25 @@
       "auto_delete": false,
       "exclusive": false,
       "arguments": {}
+    },
+    {
+      "name": "payment",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "exclusive": false,
+      "arguments": {
+        "x-dead-letter-exchange": "finance-dlx",
+        "x-dead-letter-routing-key": "payment"
+      }
+    },
+    {
+      "name": "payment.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "exclusive": false,
+      "arguments": {}
     }
   ],
   "exchanges": [
@@ -93,6 +112,14 @@
       }
     },
     {
+      "source": "finance-dlx",
+      "vhost": "/",
+      "destination": "payment.dlq",
+      "destination_type": "queue",
+      "routing_key": "payment",
+      "arguments": {}
+    },
+    {
       "source": "finance-input",
       "vhost": "/",
       "destination": "budget",
@@ -101,6 +128,17 @@
       "arguments": {
         "x-match": "all",
         "event-type": "WorkOrderCreatedEvent"
+      }
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "payment",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "GeneratePaymentIntegrationCommand"
       }
     }
   ]

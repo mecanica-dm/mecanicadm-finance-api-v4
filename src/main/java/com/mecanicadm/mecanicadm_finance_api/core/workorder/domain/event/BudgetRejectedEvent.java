@@ -2,14 +2,11 @@ package com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event;
 
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event.MessageHeader;
 
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 public class BudgetRejectedEvent implements MessageHeader {
     private UUID messageId = UUID.randomUUID();
     private UUID workOrderId;
-    private ZonedDateTime ocurredAt = ZonedDateTime.now(ZoneOffset.UTC);
     private String observation;
 
     public BudgetRejectedEvent() {
@@ -40,15 +37,6 @@ public class BudgetRejectedEvent implements MessageHeader {
 
     public void setWorkOrderId(UUID workOrderId) {
         this.workOrderId = workOrderId;
-    }
-
-    @Override
-    public ZonedDateTime ocurredAt() {
-        return ocurredAt;
-    }
-
-    public ZonedDateTime getOcurredAt() {
-        return ocurredAt;
     }
 
     public String getObservation() {
