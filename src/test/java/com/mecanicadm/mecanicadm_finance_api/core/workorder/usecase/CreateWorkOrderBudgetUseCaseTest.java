@@ -5,7 +5,7 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.WorkOrderBudg
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.WorkOrderBudgetItem;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetGeneratedEvent;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderSnapshot;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.port.WorkOrderBudgetGateway;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.command.CreateWorkOrderBudgetCommand;
 import org.junit.jupiter.api.DisplayName;
@@ -96,13 +96,13 @@ class CreateWorkOrderBudgetUseCaseTest {
                 WorkOrderBudgetStatus.PENDING,
                 "observacao",
                 "descricao",
-                new WorkOrderCreatedEvent.Client(UUID.randomUUID(), "Cliente Teste", "cliente@teste.com",
+                new WorkOrderSnapshot.Client(UUID.randomUUID(), "Cliente Teste", "cliente@teste.com",
                         "12345678901", "48999999999"),
-                new WorkOrderCreatedEvent.Vehicle("ABC-1234", "Modelo", "Marca", (short) 2020),
-                List.of(new WorkOrderCreatedEvent.MaterialItem(
+                new WorkOrderSnapshot.Vehicle("ABC-1234", "Modelo", "Marca", (short) 2020),
+                List.of(new WorkOrderSnapshot.MaterialItem(
                         UUID.randomUUID(), UUID.randomUUID(), 2, "Material", "Marca",
                         "descricao material", new BigDecimal("50.00"), "PART")),
-                List.of(new WorkOrderCreatedEvent.LaborItem(
+                List.of(new WorkOrderSnapshot.LaborItem(
                         UUID.randomUUID(), workOrderId, UUID.randomUUID(), null, null, null,
                         "Servico", new BigDecimal("80.00")))
         );

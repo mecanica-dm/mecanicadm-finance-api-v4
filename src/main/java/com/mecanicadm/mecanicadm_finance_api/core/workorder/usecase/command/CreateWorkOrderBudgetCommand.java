@@ -1,7 +1,7 @@
 package com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.command;
 
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderSnapshot;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,9 +13,9 @@ public record CreateWorkOrderBudgetCommand(
         WorkOrderBudgetStatus status,
         String observation,
         String description,
-        WorkOrderCreatedEvent.Client client,
-        WorkOrderCreatedEvent.Vehicle vehicle,
-        List<WorkOrderCreatedEvent.MaterialItem> materialItems,
-        List<WorkOrderCreatedEvent.LaborItem> laborItems
+        WorkOrderSnapshot.Client client,
+        WorkOrderSnapshot.Vehicle vehicle,
+        List<WorkOrderSnapshot.MaterialItem> materialItems,
+        List<WorkOrderSnapshot.LaborItem> laborItems
 ) {
 }

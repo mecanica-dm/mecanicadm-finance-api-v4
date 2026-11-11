@@ -1,6 +1,5 @@
 package com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event;
 
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetApprovedEvent;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetCanceledEvent;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetChangesRequestedEvent;
@@ -10,7 +9,6 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetR
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetSentForDecisionEvent;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetSentForDecisionFailedEvent;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetUpdatedEvent;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,29 +41,5 @@ class MessageHeaderTest {
             assertThat(event.workOrderId()).isEqualTo(WORK_ORDER_ID);
             assertThat(event.eventType()).isEqualTo(event.getClass().getSimpleName());
         });
-    }
-
-    @Test
-    @DisplayName("Deve gerar cabeçalho padrão no WorkOrderCreatedEvent quando não informado")
-    void shouldGenerateDefaultHeaderForWorkOrderCreatedEvent() {
-        WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
-                WORK_ORDER_ID, BigDecimal.TEN, WorkOrderBudgetStatus.PENDING, "obs",
-                "description", null, null, List.of(), List.of(), null);
-
-        assertThat(event.messageId()).isNotNull();
-        assertThat(event.workOrderId()).isEqualTo(WORK_ORDER_ID);
-        assertThat(event.eventType()).isEqualTo(WorkOrderCreatedEvent.class.getSimpleName());
-    }
-
-    @Test
-    @DisplayName("Deve respeitar messageId informado no WorkOrderCreatedEvent")
-    void shouldKeepInformedMessageIdForWorkOrderCreatedEvent() {
-        UUID messageId = UUID.randomUUID();
-
-        WorkOrderCreatedEvent event = new WorkOrderCreatedEvent(
-                WORK_ORDER_ID, BigDecimal.TEN, WorkOrderBudgetStatus.APPROVED, "obs",
-                "description", null, null, List.of(), List.of(), messageId);
-
-        assertThat(event.messageId()).isEqualTo(messageId);
     }
 }

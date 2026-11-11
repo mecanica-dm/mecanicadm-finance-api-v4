@@ -1,6 +1,5 @@
 package com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event;
 
-import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event.MessageHeader;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.LaborExecutionStatus;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 
@@ -9,8 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public record WorkOrderCreatedEvent(
-        UUID workOrderId,
+public record WorkOrderSnapshot(
         BigDecimal totalPrice,
         WorkOrderBudgetStatus status,
         String observation,
@@ -18,13 +16,8 @@ public record WorkOrderCreatedEvent(
         Client client,
         Vehicle vehicle,
         List<MaterialItem> materialItems,
-        List<LaborItem> laborItems,
-        UUID messageId
-) implements MessageHeader {
-
-    public WorkOrderCreatedEvent {
-        messageId = messageId != null ? messageId : UUID.randomUUID();
-    }
+        List<LaborItem> laborItems
+) {
 
     public record Client(
             UUID id,

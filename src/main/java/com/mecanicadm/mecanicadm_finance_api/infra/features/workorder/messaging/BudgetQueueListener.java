@@ -4,7 +4,6 @@ import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.InboxEntry;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.ProcessInboundMessageUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.CancelBudgetIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.GenerateBudgetIntegrationCommand;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +25,6 @@ public class BudgetQueueListener {
     private final Jackson2JsonMessageConverter messageConverter;
     private final GenerateBudgetIntegrationListener generateBudgetListener;
     private final CancelBudgetIntegrationListener cancelBudgetListener;
-    private final WorkOrderCreatedIntegrationListener workOrderCreatedListener;
     private final ProcessInboundMessageUseCase processInboundMessageUseCase;
     private final MeterRegistry meterRegistry;
 
@@ -36,7 +34,6 @@ public class BudgetQueueListener {
     public BudgetQueueListener(Jackson2JsonMessageConverter messageConverter,
                                GenerateBudgetIntegrationListener generateBudgetListener,
                                CancelBudgetIntegrationListener cancelBudgetListener,
-                               WorkOrderCreatedIntegrationListener workOrderCreatedListener,
                                ProcessInboundMessageUseCase processInboundMessageUseCase,
                                MeterRegistry meterRegistry,
                                @Value("${app.rabbitmq.queues.budget:budget}") String consumer,
@@ -44,7 +41,6 @@ public class BudgetQueueListener {
         this.messageConverter = messageConverter;
         this.generateBudgetListener = generateBudgetListener;
         this.cancelBudgetListener = cancelBudgetListener;
-        this.workOrderCreatedListener = workOrderCreatedListener;
         this.processInboundMessageUseCase = processInboundMessageUseCase;
         this.meterRegistry = meterRegistry;
         this.consumer = consumer;
@@ -97,15 +93,12 @@ public class BudgetQueueListener {
             generateBudgetListener.onMessage(convert(message, GenerateBudgetIntegrationCommand.class));
         } else if (CancelBudgetIntegrationCommand.class.getSimpleName().equals(eventType)) {
             cancelBudgetListener.onMessage(convert(message, CancelBudgetIntegrationCommand.class));
-        } else if (WorkOrderCreatedEvent.class.getSimpleName().equals(eventType)) {
-            workOrderCreatedListener.onMessage(convert(message, WorkOrderCreatedEvent.class));
         }
     }
 
     private boolean isSupported(String eventType) {
         return GenerateBudgetIntegrationCommand.class.getSimpleName().equals(eventType)
-                || CancelBudgetIntegrationCommand.class.getSimpleName().equals(eventType)
-                || WorkOrderCreatedEvent.class.getSimpleName().equals(eventType);
+                || CancelBudgetIntegrationCommand.class.getSimpleName().equals(eventType);
     }
 
     private UUID resolveMessageId(Message message, String eventType) {

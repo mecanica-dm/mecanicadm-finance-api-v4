@@ -8,7 +8,7 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.WorkOrderBudg
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.WorkOrderBudgetVehicle;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.enums.WorkOrderBudgetStatus;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.BudgetGeneratedEvent;
-import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderCreatedEvent;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderSnapshot;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.port.WorkOrderBudgetGateway;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.command.CreateWorkOrderBudgetCommand;
 import com.mecanicadm.mecanicadm_finance_api.shared.usecase.VoidUseCase;
@@ -70,7 +70,7 @@ public class CreateWorkOrderBudgetUseCase implements VoidUseCase<CreateWorkOrder
         return price;
     }
 
-    private WorkOrderBudgetClient toClient(WorkOrderCreatedEvent.Client client) {
+    private WorkOrderBudgetClient toClient(WorkOrderSnapshot.Client client) {
         if (client == null) {
             return null;
         }
@@ -83,7 +83,7 @@ public class CreateWorkOrderBudgetUseCase implements VoidUseCase<CreateWorkOrder
         );
     }
 
-    private WorkOrderBudgetVehicle toVehicle(WorkOrderCreatedEvent.Vehicle vehicle) {
+    private WorkOrderBudgetVehicle toVehicle(WorkOrderSnapshot.Vehicle vehicle) {
         if (vehicle == null) {
             return null;
         }
@@ -95,8 +95,8 @@ public class CreateWorkOrderBudgetUseCase implements VoidUseCase<CreateWorkOrder
         );
     }
 
-    private Set<WorkOrderBudgetItem> buildItems(List<WorkOrderCreatedEvent.MaterialItem> materialItems,
-                                                List<WorkOrderCreatedEvent.LaborItem> laborItems) {
+    private Set<WorkOrderBudgetItem> buildItems(List<WorkOrderSnapshot.MaterialItem> materialItems,
+                                                List<WorkOrderSnapshot.LaborItem> laborItems) {
         Set<WorkOrderBudgetItem> items = new LinkedHashSet<>();
 
         valuesOf(materialItems).forEach(item -> items.add(WorkOrderBudgetItem.restore(

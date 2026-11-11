@@ -37,7 +37,6 @@ Não existe enum centralizando os valores: o contrato é a própria classe do ev
 | `BudgetSentForDecisionFailedEvent` | `BudgetSentForDecisionFailedEvent` |
 | `BudgetUpdatedEvent`               | `BudgetUpdatedEvent`               |
 | `FinanceCommandRejected`           | `FinanceCommandRejected`           |
-| `WorkOrderCreatedEvent`            | `WorkOrderCreatedEvent`            |
 | `GenerateBudgetIntegrationCommand` | `GenerateBudgetIntegrationCommand` |
 | `CancelBudgetIntegrationCommand`   | `CancelBudgetIntegrationCommand`   |
 | `GeneratePaymentIntegrationCommand` | `GeneratePaymentIntegrationCommand` |
