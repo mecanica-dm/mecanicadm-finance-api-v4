@@ -12,6 +12,8 @@ A aplicação **não declara** mais esses recursos em tempo de execução.
 | Exchange  | `direct`  | `finance-dlx`    |
 | Fila      | —         | `budget`         |
 | Fila      | —         | `budget.dlq`     |
+| Fila      | —         | `payment`        |
+| Fila      | —         | `payment.dlq`    |
 
 A `finance-output` é usada apenas para eventos **publicados** pela aplicação.
 
@@ -20,6 +22,7 @@ Bindings da `finance-input`, usada apenas para eventos **consumidos** (header `e
 - `GenerateBudgetIntegrationCommand`
 - `CancelBudgetIntegrationCommand`
 - `WorkOrderCreatedEvent`
+- `GeneratePaymentIntegrationCommand` (fila `payment`)
 
 ## Como importar
 
@@ -46,5 +49,6 @@ curl -u admin:admin \
 ```
 
 > Os nomes no JSON devem corresponder às variáveis `RABBITMQ_EXCHANGE_OUTPUT`,
-> `RABBITMQ_EXCHANGE_INPUT`, `RABBITMQ_QUEUE_BUDGET`, `RABBITMQ_EXCHANGE_DEAD_LETTER` e
-> `RABBITMQ_QUEUE_BUDGET_DLQ` usadas pela aplicação.
+> `RABBITMQ_EXCHANGE_INPUT`, `RABBITMQ_QUEUE_BUDGET`, `RABBITMQ_EXCHANGE_DEAD_LETTER`,
+> `RABBITMQ_QUEUE_BUDGET_DLQ`, `RABBITMQ_QUEUE_PAYMENT` e `RABBITMQ_QUEUE_PAYMENT_DLQ`
+> usadas pela aplicação.

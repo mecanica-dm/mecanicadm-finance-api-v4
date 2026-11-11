@@ -119,5 +119,7 @@ app:
     queues:
       budget: "${RABBITMQ_QUEUE_BUDGET:budget}"
       budget-dlq: "${RABBITMQ_QUEUE_BUDGET_DLQ:budget.dlq}"
+      payment: "${RABBITMQ_QUEUE_PAYMENT:payment}"
+      payment-dlq: "${RABBITMQ_QUEUE_PAYMENT_DLQ:payment.dlq}"
     headers:
       event-type: "${RABBITMQ_HEADER_EVENT_TYPE:event-type}"
