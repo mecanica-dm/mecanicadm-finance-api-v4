@@ -1,4 +1,47 @@
 services:
+  # A aplicacao NAO declara a topologia do RabbitMQ em runtime (ver
+  # messaging/README.md): ela espera que as filas/exchanges de
+  # messaging/definitions.json ja existam. No CI o broker sobe vazio, entao os
+  # @RabbitListener fazem queue.declare passivo, recebem
+  # "not_found: no queue 'payment' in vhost '/'" e, como
+  # missingQueuesFatal=true por padrao, o contexto Spring nao sobe.
+  #
+  # Este servico importa as definicoes e a API so inicia depois que ele termina
+  # com sucesso (service_completed_successfully).
+  rabbitmq-init:
+    image: curlimages/curl:8.12.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./messaging/definitions.json:/definitions.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+
+        curl -fsS --retry 30 --retry-delay 2 --retry-connrefused \
+          -u "${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}" \
+          http://rabbitmq:15672/api/overview > /dev/null
+
+        curl -fsS --retry 5 --retry-all-errors --retry-delay 2 \
+          -u "${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}" \
+          -H "Content-Type: application/json" \
+          -X POST --data-binary @/definitions.json \
+          http://rabbitmq:15672/api/definitions
+
+        echo "Topologia do RabbitMQ importada (budget, budget.dlq, payment, payment.dlq)"
+
   api:
     image: mecanicadm-finance-api-v4:ci
     pull_policy: never
+    depends_on:
+      rabbitmq-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
