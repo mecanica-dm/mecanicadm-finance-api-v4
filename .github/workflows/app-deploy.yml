@@ -32,7 +32,7 @@ env:
   # O repositório da imagem do finance precisa ser próprio do serviço: o
   # ci-cd.yml também publica a tag móvel "prod-latest" e ela colidiria com a do
   # workorder se os dois usassem o mesmo repositório.
-  IMAGE_REPO: ${{ vars.DOCKER_IMAGE_REPO || 'diegopriess/mecanicadm-finance' }}
+  IMAGE_REPO: ${{ vars.DOCKER_IMAGE_REPO || 'guilhermemuchon/mecanica-dm-finance-api' }}
 
 jobs:
   deploy:
