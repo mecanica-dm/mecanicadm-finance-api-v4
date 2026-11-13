@@ -1,6 +1,6 @@
 package com.mecanicadm.mecanicadm_finance_api.core.shared.usecase;
 
-import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event.FinanceCommandRejected;
+import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event.FinanceCommandRejectedEvent;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.port.EventPublisher;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.command.RejeitarFinanceCommandCommand;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +26,7 @@ class RejeitarFinanceCommandServiceTest {
     private RejeitarFinanceCommandService service;
 
     @Test
-    @DisplayName("Deve publicar FinanceCommandRejected com os dados do comando rejeitado")
+    @DisplayName("Deve publicar FinanceCommandRejectedEvent com os dados do comando rejeitado")
     void shouldPublishRejectedEventWithCommandDetails() {
         UUID workOrderId = UUID.randomUUID();
         RuntimeException exception = new IllegalStateException("falha ao processar");
@@ -34,10 +34,10 @@ class RejeitarFinanceCommandServiceTest {
         service.execute(new RejeitarFinanceCommandCommand(
                 workOrderId, "GenerateBudgetIntegrationCommand", exception));
 
-        ArgumentCaptor<FinanceCommandRejected> captor = ArgumentCaptor.forClass(FinanceCommandRejected.class);
+        ArgumentCaptor<FinanceCommandRejectedEvent> captor = ArgumentCaptor.forClass(FinanceCommandRejectedEvent.class);
         verify(eventPublisher).publish(captor.capture());
 
-        FinanceCommandRejected event = captor.getValue();
+        FinanceCommandRejectedEvent event = captor.getValue();
         assertThat(event.getWorkOrderId()).isEqualTo(workOrderId);
         assertThat(event.getEventType()).isEqualTo("GenerateBudgetIntegrationCommand");
         assertThat(event.getException()).isEqualTo("IllegalStateException");
@@ -50,10 +50,26 @@ class RejeitarFinanceCommandServiceTest {
         service.execute(new RejeitarFinanceCommandCommand(
                 UUID.randomUUID(), "CancelBudgetIntegrationCommand", new RuntimeException("erro")));
 
-        ArgumentCaptor<FinanceCommandRejected> captor = ArgumentCaptor.forClass(FinanceCommandRejected.class);
+        ArgumentCaptor<FinanceCommandRejectedEvent> captor = ArgumentCaptor.forClass(FinanceCommandRejectedEvent.class);
         verify(eventPublisher).publish(captor.capture());
 
-        assertThat(captor.getValue().eventType()).isEqualTo("FinanceCommandRejected");
+        assertThat(captor.getValue().eventType()).isEqualTo("FinanceCommandRejectedEvent");
         assertThat(captor.getValue().messageId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Deve derivar o id do evento do id da mensagem recebida, para a mesma mensagem gerar sempre o mesmo id")
+    void shouldDeriveEventIdFromInboundMessageId() {
+        UUID inbound = UUID.randomUUID();
+        UUID workOrderId = UUID.randomUUID();
+
+        service.execute(new RejeitarFinanceCommandCommand(workOrderId, "CancelBudgetIntegrationCommand", new RuntimeException("a"), inbound));
+        service.execute(new RejeitarFinanceCommandCommand(workOrderId, "CancelBudgetIntegrationCommand", new RuntimeException("b"), inbound));
+        service.execute(new RejeitarFinanceCommandCommand(workOrderId, "CancelBudgetIntegrationCommand", new RuntimeException("c"), UUID.randomUUID()));
+
+        ArgumentCaptor<FinanceCommandRejectedEvent> captor = ArgumentCaptor.forClass(FinanceCommandRejectedEvent.class);
+        verify(eventPublisher, org.mockito.Mockito.times(3)).publish(captor.capture());
+        assertThat(captor.getAllValues().get(0).messageId()).isEqualTo(captor.getAllValues().get(1).messageId());
+        assertThat(captor.getAllValues().get(0).messageId()).isNotEqualTo(captor.getAllValues().get(2).messageId());
     }
 }

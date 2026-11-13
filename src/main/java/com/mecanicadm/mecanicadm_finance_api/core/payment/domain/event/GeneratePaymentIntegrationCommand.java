@@ -1,4 +1,6 @@
 package com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event;
 
-public record GeneratePaymentIntegrationCommand(String id) {
+import java.util.UUID;
+
+public record GeneratePaymentIntegrationCommand(UUID workOrderId) {
 }

@@ -1,6 +1,8 @@
 package com.mecanicadm.mecanicadm_finance_api.infra.features.payment.messaging;
 
+import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.CancelPaymentIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.GeneratePaymentIntegrationCommand;
+import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.RefundPaymentIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.InboxEntry;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.ProcessInboundMessageUseCase;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -37,6 +39,10 @@ class PaymentQueueListenerTest {
     @Mock
     private GeneratePaymentIntegrationListener generatePaymentListener;
     @Mock
+    private CancelPaymentIntegrationListener cancelPaymentListener;
+    @Mock
+    private RefundPaymentIntegrationListener refundPaymentListener;
+    @Mock
     private ProcessInboundMessageUseCase processInboundMessageUseCase;
 
     private SimpleMeterRegistry meterRegistry;
@@ -46,6 +52,7 @@ class PaymentQueueListenerTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         listener = new PaymentQueueListener(messageConverter, generatePaymentListener,
+                cancelPaymentListener, refundPaymentListener,
                 processInboundMessageUseCase, meterRegistry, CONSUMER, EVENT_TYPE_HEADER);
     }
 
@@ -53,7 +60,7 @@ class PaymentQueueListenerTest {
     @DisplayName("Deve direcionar mensagem de geração de pagamento pelo header")
     void shouldDispatchGeneratePaymentByHeader() {
         GeneratePaymentIntegrationCommand command =
-                new GeneratePaymentIntegrationCommand(UUID.randomUUID().toString());
+                new GeneratePaymentIntegrationCommand(UUID.randomUUID());
         when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
         executeHandler();
 
@@ -64,10 +71,51 @@ class PaymentQueueListenerTest {
     }
 
     @Test
+    @DisplayName("Deve direcionar o cancelamento de pagamento pelo header")
+    void shouldDispatchCancelPaymentByHeader() {
+        CancelPaymentIntegrationCommand command = new CancelPaymentIntegrationCommand(UUID.randomUUID());
+        when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
+        executeHandler();
+
+        listener.onMessage(messageWithEventType(CancelPaymentIntegrationCommand.class.getSimpleName()));
+
+        verify(cancelPaymentListener).onMessage(command);
+        verifyNoInteractions(generatePaymentListener, refundPaymentListener);
+    }
+
+    @Test
+    @DisplayName("Deve direcionar o estorno de pagamento pelo header")
+    void shouldDispatchRefundPaymentByHeader() {
+        RefundPaymentIntegrationCommand command = new RefundPaymentIntegrationCommand(UUID.randomUUID());
+        when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
+        executeHandler();
+
+        listener.onMessage(messageWithEventType(RefundPaymentIntegrationCommand.class.getSimpleName()));
+
+        verify(refundPaymentListener).onMessage(command);
+        verifyNoInteractions(generatePaymentListener, cancelPaymentListener);
+    }
+
+    @Test
+    @DisplayName("Deve preferir o header message-id ao messageId do AMQP como chave da inbox")
+    void shouldPreferMessageIdHeaderOverAmqpProperty() {
+        UUID headerId = UUID.randomUUID();
+        Message message = messageWithEventType(GeneratePaymentIntegrationCommand.class.getSimpleName());
+        message.getMessageProperties().setHeader("message-id", headerId.toString());
+        message.getMessageProperties().setMessageId(UUID.randomUUID().toString());
+
+        listener.onMessage(message);
+
+        ArgumentCaptor<InboxEntry> captor = ArgumentCaptor.forClass(InboxEntry.class);
+        verify(processInboundMessageUseCase).execute(captor.capture(), any(Runnable.class));
+        assertThat(captor.getValue().messageId()).isEqualTo(headerId);
+    }
+
+    @Test
     @DisplayName("Deve ler header enviado como bytes")
     void shouldReadByteArrayHeader() {
         GeneratePaymentIntegrationCommand command =
-                new GeneratePaymentIntegrationCommand(UUID.randomUUID().toString());
+                new GeneratePaymentIntegrationCommand(UUID.randomUUID());
         when(messageConverter.fromMessage(any(Message.class))).thenReturn(command);
         executeHandler();
 

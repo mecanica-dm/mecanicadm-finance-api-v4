@@ -6,6 +6,8 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.Generat
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.WorkOrderSnapshot;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.CreateWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.command.CreateWorkOrderBudgetCommand;
+import com.mecanicadm.mecanicadm_finance_api.infra.messaging.inbox.InboundMessageContext;
+import com.mecanicadm.mecanicadm_finance_api.shared.exception.DomainExceptionCore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,10 +36,13 @@ public class GenerateBudgetIntegrationListener {
         } catch (RuntimeException e) {
             logger.error("Falha ao processar GenerateBudgetIntegrationCommand para a OS {}: {}",
                     command.workOrderId(), e.getMessage(), e);
-            rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
-                    command.workOrderId(),
-                    GenerateBudgetIntegrationCommand.class.getSimpleName(),
-                    e));
+            if (e instanceof DomainExceptionCore) {
+                rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
+                        command.workOrderId(),
+                        GenerateBudgetIntegrationCommand.class.getSimpleName(),
+                        e,
+                        InboundMessageContext.current()));
+            }
             throw e;
         }
     }
