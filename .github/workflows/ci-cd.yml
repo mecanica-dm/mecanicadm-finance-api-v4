@@ -84,8 +84,35 @@ jobs:
       - name: Start Application
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 
+      # O "sleep 15" antigo nao era suficiente: o compose sobe Postgres e
+      # RabbitMQ (healthchecks) e o Spring ainda roda Flyway + JPA. Enquanto a
+      # API nao respondia, o ZAP falhava com "Connection refused" e
+      # "Failed to import any URLs" (NoUrlsException).
       - name: Wait for application startup
-        run: sleep 15
+        run: |
+          set -euo pipefail
+
+          base_url="http://localhost:8080"
+          timeout=300
+          elapsed=0
+
+          until curl -fsS -o /dev/null "${base_url}/api/actuator/health/readiness"; do
+            if [ "${elapsed}" -ge "${timeout}" ]; then
+              echo "::error::A API nao ficou pronta em ${timeout}s"
+              docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
+              docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=300
+              exit 1
+            fi
+            echo "Aguardando a API... (${elapsed}s/${timeout}s)"
+            sleep 5
+            elapsed=$((elapsed + 5))
+          done
+
+          echo "API pronta em ${elapsed}s. Validando o OpenAPI..."
+          spec_file="${RUNNER_TEMP}/openapi.json"
+          curl -fsS "${base_url}/api/v3/api-docs" -o "${spec_file}"
+          jq -e '(.paths // {}) | length > 0' "${spec_file}" > /dev/null
+          echo "Endpoints encontrados: $(jq '(.paths // {}) | length' "${spec_file}")"
 
       - name: Give permissions for ZAP
         run: chmod -R 777 .
@@ -110,7 +137,7 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
 
   publish-and-deploy:
     name: Publicação da imagem e Deploy
