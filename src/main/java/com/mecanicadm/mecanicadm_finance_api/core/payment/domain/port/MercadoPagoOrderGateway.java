@@ -5,4 +5,10 @@ import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.MercadoPagoOrde
 
 public interface MercadoPagoOrderGateway {
     MercadoPagoOrder createOrder(MercadoPagoOrderData orderData, String accessToken, String idempotencyKey);
+
+    MercadoPagoOrder getOrder(String orderId, String accessToken);
+
+    MercadoPagoOrder cancelOrder(String orderId, String accessToken, String idempotencyKey);
+
+    MercadoPagoOrder refundOrder(String orderId, String accessToken, String idempotencyKey);
 }

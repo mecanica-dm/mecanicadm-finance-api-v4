@@ -54,6 +54,57 @@ public class MercadoPagoOrderGatewayImpl implements MercadoPagoOrderGateway {
         }
     }
 
+    @Override
+    public MercadoPagoOrder getOrder(String orderId, String accessToken) {
+        try {
+            MercadoPagoOrder order = restClient.get()
+                    .uri("/v1/orders/{id}", orderId)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .retrieve()
+                    .body(MercadoPagoOrder.class);
+
+            if (order == null) {
+                throw new PaymentException.MercadoPagoProviderError(502, "Resposta vazia do Mercado Pago");
+            }
+
+            return order;
+        } catch (RestClientResponseException ex) {
+            throw new PaymentException.MercadoPagoProviderError(
+                    ex.getStatusCode().value(), sanitizeDetail(ex.getResponseBodyAsString()));
+        }
+    }
+
+    @Override
+    public MercadoPagoOrder cancelOrder(String orderId, String accessToken, String idempotencyKey) {
+        return postAction(orderId, "cancel", accessToken, idempotencyKey);
+    }
+
+    @Override
+    public MercadoPagoOrder refundOrder(String orderId, String accessToken, String idempotencyKey) {
+        return postAction(orderId, "refund", accessToken, idempotencyKey);
+    }
+
+    private MercadoPagoOrder postAction(String orderId, String action, String accessToken, String idempotencyKey) {
+        try {
+            MercadoPagoOrder order = restClient.post()
+                    .uri("/v1/orders/{id}/{action}", orderId, action)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+                    .retrieve()
+                    .body(MercadoPagoOrder.class);
+
+            if (order == null) {
+                throw new PaymentException.MercadoPagoProviderError(502, "Resposta vazia do Mercado Pago");
+            }
+
+            return order;
+        } catch (RestClientResponseException ex) {
+            throw new PaymentException.MercadoPagoProviderError(
+                    ex.getStatusCode().value(), sanitizeDetail(ex.getResponseBodyAsString()));
+        }
+    }
+
     private MercadoPagoOrderRequest toRequest(MercadoPagoOrderData orderData) {
         MercadoPagoOrderRequest.PaymentMethod paymentMethod = new MercadoPagoOrderRequest.PaymentMethod(
                 orderData.paymentMethodId(),
