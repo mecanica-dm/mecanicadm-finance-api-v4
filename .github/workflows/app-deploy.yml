@@ -1,0 +1,171 @@
+name: Deploy Aplicação - Kubernetes (Finance API)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "devops/k8s/**"
+      - ".github/workflows/app-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag da imagem a implantar (padrão: prod-latest)"
+        required: false
+        default: "guilhermemuchon/mecanica-dm-finance-api"
+  # Acionado pelo ci-cd.yml depois do push da imagem (gh workflow run).
+  # Depois que o Terraform aplica o banco/secrets, o deploy roda sozinho.
+  workflow_run:
+    workflows: [ "Terraform - Finance DB + Secrets" ]
+    types: [ completed ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-finance-prod
+  cancel-in-progress: false
+
+env:
+  ENVIRONMENT: prod
+  NAMESPACE: mecanicadm
+  SSM_DB_PREFIX: /mecanicadm/prod/finance
+  # O repositório da imagem do finance precisa ser próprio do serviço: o
+  # ci-cd.yml também publica a tag móvel "prod-latest" e ela colidiria com a do
+  # workorder se os dois usassem o mesmo repositório.
+  IMAGE_REPO: ${{ vars.DOCKER_IMAGE_REPO || 'diegopriess/mecanicadm-finance' }}
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 30
+    # Em workflow_run só faz sentido seguir quando o Terraform aplicou de fato
+    # (push na main com sucesso); PRs apenas validam e não devem deployar.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v6
+
+      - name: Configura credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Atualiza o kubeconfig do EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ vars.EKS_CLUSTER_NAME || 'mecanicadm-prod' }} \
+            --region ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Garante o namespace da aplicação
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml \
+            | kubectl apply -f -
+
+      # As credenciais do banco são publicadas no SSM pelo Terraform
+      # (devops/terraform). A pipeline lê os valores e materializa o Secret,
+      # evitando credenciais versionadas no repositório.
+      - name: Cria o Secret do banco a partir do SSM
+        run: |
+          set -euo pipefail
+
+          ssm() {
+            aws ssm get-parameter --name "$1" --with-decryption \
+              --query Parameter.Value --output text
+          }
+
+          DB_HOST="$(ssm "$SSM_DB_PREFIX/db_host")"
+          DB_PORT="$(ssm "$SSM_DB_PREFIX/db_port")"
+          DB_NAME="$(ssm "$SSM_DB_PREFIX/db_name")"
+          DB_USER="$(ssm "$SSM_DB_PREFIX/db_user")"
+          DB_PASSWORD="$(ssm "$SSM_DB_PREFIX/db_password")"
+
+          kubectl create secret generic mecanicadm-finance-db-secrets \
+            --namespace ${{ env.NAMESPACE }} \
+            --from-literal=DB_HOST="$DB_HOST" \
+            --from-literal=DB_PORT="$DB_PORT" \
+            --from-literal=DB_NAME="$DB_NAME" \
+            --from-literal=DB_USER="$DB_USER" \
+            --from-literal=DB_PASSWORD="$DB_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # O JWT é compartilhado com o workorder: é criado no state do
+      # mecanicadm-workorder-api-v4 e aqui só é consumido.
+      # SMTP, New Relic e Mercado Pago continuam em GitHub Secrets.
+      - name: Cria o Secret da aplicação
+        env:
+          JWT_SECRET_PARAM: /mecanicadm/prod/jwt_secret
+        run: |
+          set -euo pipefail
+
+          JWT_SECRET="$(aws ssm get-parameter --name "$JWT_SECRET_PARAM" \
+            --with-decryption --query Parameter.Value --output text)"
+
+          kubectl create secret generic mecanicadm-finance-secrets \
+            --namespace ${{ env.NAMESPACE }} \
+            --from-literal=JWT_SECRET="$JWT_SECRET" \
+            --from-literal=MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
+            --from-literal=MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
+            --from-literal=NEW_RELIC_LICENSE_KEY="${{ secrets.NEW_RELIC_LICENSE_KEY }}" \
+            --from-literal=MERCADO_PAGO_ACCESS_TOKEN="${{ secrets.MERCADO_PAGO_ACCESS_TOKEN }}" \
+            --from-literal=MERCADO_PAGO_PUBLIC_KEY="${{ secrets.MERCADO_PAGO_PUBLIC_KEY }}" \
+            --from-literal=MERCADO_PAGO_CLIENT_ID="${{ secrets.MERCADO_PAGO_CLIENT_ID }}" \
+            --from-literal=MERCADO_PAGO_CLIENT_SECRET="${{ secrets.MERCADO_PAGO_CLIENT_SECRET }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Aguarda o Kong ficar pronto
+        run: |
+          kubectl -n kong rollout status deployment/ingress-kong --timeout=10m
+
+      - name: Aplica os manifests da aplicação (exceto o Job de seed)
+        run: |
+          kubectl apply \
+            -f devops/k8s/serviceaccount.yaml \
+            -f devops/k8s/configmap.yaml \
+            -f devops/k8s/service.yaml \
+            -f devops/k8s/deployment.yaml \
+            -f devops/k8s/hpa.yaml \
+            -f devops/k8s/ingress.yaml
+
+      - name: Define a tag da imagem a implantar
+        id: image
+        run: |
+          TAG="${{ inputs.image_tag || 'prod-latest' }}"
+          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Atualiza a imagem do Deployment
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} set image deployment/mecanicadm-finance \
+            mecanicadm-finance=${{ env.IMAGE_REPO }}:${{ steps.image.outputs.TAG }}
+
+      - name: Verifica o status do rollout
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/mecanicadm-finance --timeout=5m
+
+      - name: Cria o ConfigMap do seed
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} create configmap mecanicadm-finance-seed-sql \
+            --from-file=init.sql=devops/k8s/seed/init.sql \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Remove o Job de seed anterior (Jobs são imutáveis)
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} delete job mecanicadm-finance-seed \
+            --ignore-not-found --wait=true
+
+      - name: Executa o Job de seed
+        run: |
+          kubectl apply -f devops/k8s/seed-job.yaml
+          kubectl -n ${{ env.NAMESPACE }} wait \
+            --for=condition=complete job/mecanicadm-finance-seed --timeout=10m
+
+      - name: Logs do Job de seed (em caso de falha)
+        if: failure()
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} logs job/mecanicadm-finance-seed --tail=200 || true

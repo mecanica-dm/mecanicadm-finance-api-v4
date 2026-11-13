@@ -1,0 +1,35 @@
+# Configuracao nao sensivel da Finance API.
+#
+# Credenciais (banco, JWT, SMTP, New Relic e Mercado Pago) NAO ficam aqui: sao
+# criadas pela pipeline (app-deploy.yml) nos Secrets
+# "mecanicadm-finance-db-secrets" e "mecanicadm-finance-secrets".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mecanicadm-finance-config
+  namespace: mecanicadm
+  labels:
+    app.kubernetes.io/name: mecanicadm-finance
+    app.kubernetes.io/instance: mecanicadm-finance
+    app.kubernetes.io/part-of: mecanicadm
+    app.kubernetes.io/component: finance-api
+data:
+  # Link enviado por e-mail no orcamento. O context-path da aplicacao e /api,
+  # por isso a base ja termina em /api (o path /budget-decision/ e relativo).
+  BUDGET_BASE_URL: "https://finance.mecanicadm.com.br/api"
+
+  MAIL_HOST: "smtp.gmail.com"
+  MAIL_PORT: "587"
+  MAIL_SMTP_AUTH: "true"
+  MAIL_SMTP_STARTTLS: "true"
+
+  # O grupo de readiness do Spring Boot inclui, por padrao, apenas o estado do
+  # pod. Declaramos "db" explicitamente para o pod nao ficar pronto com o banco
+  # fora do ar, e deixamos o RabbitMQ de fora: ele ainda nao foi provisionado e
+  # derrubaria o readiness do pod.
+  MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE: "readinessState,db"
+
+  # RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD e os nomes de
+  # exchanges/filas entram aqui quando o broker for provisionado (ver
+  # devops/terraform/README.md). Sem essas variaveis a aplicacao tenta
+  # localhost:5672, falha e continua tentando reconectar sem derrubar o pod.

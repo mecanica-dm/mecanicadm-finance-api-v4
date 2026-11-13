@@ -1,0 +1,35 @@
+# Roteia /api de finance.mecanicadm.com.br para a Finance API via Kong.
+# Fluxo: Cliente -> Kong (Service kong-proxy, NLB) -> Ingress -> Service
+# mecanicadm-finance -> Pod.
+#
+# O host e proprio do finance porque o workorder ja ocupa
+# api.mecanicadm.com.br/api no mesmo Kong. O ExternalDNS cria o registro no
+# Route 53 a partir deste Ingress (domain-filter mecanicadm.com.br).
+#
+# TLS: como o NLB do Kong e TCP (pass-through), o certificado e servido pelo
+# proprio Kong. Este Ingress nao declara "tls", igual ao do workorder; se for
+# necessario HTTPS valido em finance.mecanicadm.com.br, cadastre o certificado
+# no Kong (mesmo procedimento adotado para api.mecanicadm.com.br).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mecanicadm-finance
+  namespace: mecanicadm
+  labels:
+    app.kubernetes.io/name: mecanicadm-finance
+    app.kubernetes.io/instance: mecanicadm-finance
+    app.kubernetes.io/part-of: mecanicadm
+    app.kubernetes.io/component: finance-api
+spec:
+  ingressClassName: kong
+  rules:
+    - host: "finance.mecanicadm.com.br"
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: mecanicadm-finance
+                port:
+                  number: 80

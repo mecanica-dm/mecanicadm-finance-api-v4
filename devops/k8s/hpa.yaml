@@ -1,0 +1,35 @@
+# Autoscaling da Finance API.
+#
+# O cluster roda em 2 nodes t3.small, compartilhados com o workorder, o Kong e
+# os addons. Por isso o maximo e 2 replicas: o Deployment sobe com 1 e escala
+# apenas sob carga.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mecanicadm-finance
+  namespace: mecanicadm
+  labels:
+    app.kubernetes.io/name: mecanicadm-finance
+    app.kubernetes.io/instance: mecanicadm-finance
+    app.kubernetes.io/part-of: mecanicadm
+    app.kubernetes.io/component: finance-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mecanicadm-finance
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

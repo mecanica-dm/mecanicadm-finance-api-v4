@@ -7,6 +7,12 @@ on:
     types: [ opened, synchronize, reopened ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # Necessario para disparar o app-deploy.yml via "gh workflow run" com o
+  # GITHUB_TOKEN (workflow_dispatch exige actions: write).
+  actions: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -139,11 +145,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Start deploy
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.DEPLOY_PAT }}
-          repository: mecanica-dm/mecanicadm-k8s-v3
-          event-type: app-image-published
-          client-payload: >-
-            {"image_tag": "${{ env.IMAGE_TAG }}", "repository": "${{ env.IMAGE_REPO }}"}
+      # O deploy roda neste repositorio (devops/k8s + app-deploy.yml). O antigo
+      # repository_dispatch para o mecanicadm-k8s-v3 foi removido: aquele repo
+      # nao e mais usado. "gh workflow run" precisa do GITHUB_TOKEN (nao de PAT)
+      # e da permissao actions: write declarada no topo do workflow.
+      - name: Dispara o deploy no Kubernetes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run app-deploy.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f image_tag="$IMAGE_TAG"
