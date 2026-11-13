@@ -100,7 +100,7 @@ jobs:
             if [ "${elapsed}" -ge "${timeout}" ]; then
               echo "::error::A API nao ficou pronta em ${timeout}s"
               docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
-              docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=300
+              docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=200 api rabbitmq-init rabbitmq
               exit 1
             fi
             echo "Aguardando a API... (${elapsed}s/${timeout}s)"
