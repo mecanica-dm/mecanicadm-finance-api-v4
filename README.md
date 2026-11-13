@@ -555,15 +555,6 @@ As rotas também respondem em `/work-orders/{workOrderId}/budget/...`.
 
 ---
 
-## ⚠️ Limitações conhecidas
-
-- **Cancelar e estornar não foram validados contra o ambiente de testes do Mercado Pago**, só contra um servidor simulado. O estorno total é enviado sem corpo, como orienta o guia do Mercado Pago, mas a referência da API contradiz o guia nesse ponto.
-- **Falha técnica de um command não avisa a saga:** só a exceção de domínio gera o `FinanceCommandRejectedEvent` (uma vez por mensagem, mesmo com as retentativas). A falha técnica vai para a DLQ, e uma falha técnica persistente exige olhar a fila ([ADR 004](docs/adr/004-evento-de-recusa-de-command.md)).
-- **O webhook do Mercado Pago exige uma URL pública em HTTPS e o segredo configurado**; a validação da assinatura segue a documentação, mas não foi exercitada com uma notificação real (use "Simular notificação" no painel antes da demonstração). Sem o webhook, o resultado de um pagamento pendente chega pela rotina de consulta, com a latência do intervalo (1 minuto).
-- **O cartão de pagamento é o de teste fixo da configuração**, adequado à demonstração e não à produção.
-
----
-
 ## ✅ Testes
 
 O projeto possui uma suíte de testes unitários e de integração (Testcontainers com PostgreSQL) para garantir a qualidade e a estabilidade do código.
