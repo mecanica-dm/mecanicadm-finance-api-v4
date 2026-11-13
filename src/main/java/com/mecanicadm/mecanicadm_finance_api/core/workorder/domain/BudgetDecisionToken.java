@@ -38,8 +38,10 @@ public class BudgetDecisionToken {
         this.used = true;
     }
 
+    public static final long VALIDITY_HOURS = 24;
+
     public boolean isExpired() {
-        return createdAt.plusHours(24).isBefore(LocalDateTime.now(ZoneOffset.UTC));
+        return createdAt.plusHours(VALIDITY_HOURS).isBefore(LocalDateTime.now(ZoneOffset.UTC));
     }
 
     public boolean isValid() {

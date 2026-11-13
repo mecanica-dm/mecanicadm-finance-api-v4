@@ -15,11 +15,21 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.ProcessBudge
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.SendWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_finance_api.infra.pdf.PdfGenerator;
 import org.springframework.beans.factory.annotation.Value;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.port.BudgetExpiryGateway;
+import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.ExpireWorkOrderBudgetsUseCase;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@EnableConfigurationProperties(BudgetExpirationProperties.class)
 public class BudgetConfiguration {
+
+    @Bean
+    public ExpireWorkOrderBudgetsUseCase expireWorkOrderBudgetsUseCase(BudgetExpiryGateway budgetExpiryGateway,
+                                                                       EventPublisher eventPublisher) {
+        return new ExpireWorkOrderBudgetsUseCase(budgetExpiryGateway, eventPublisher);
+    }
 
     @Bean
     public BudgetSendTransactionService budgetSendTransactionService(WorkOrderBudgetGateway budgetGateway,
