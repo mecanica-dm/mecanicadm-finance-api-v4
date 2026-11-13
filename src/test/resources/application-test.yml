@@ -10,3 +10,9 @@ spring:
 app:
   outbox:
     enabled: false
+  budget:
+    expiration:
+      enabled: false
+  payment:
+    verification:
+      enabled: false
