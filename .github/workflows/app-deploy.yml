@@ -5,6 +5,9 @@ on:
     branches: [ main ]
     paths:
       - "devops/k8s/**"
+      # Mudanças na topologia do broker também passam pelo deploy, que importa
+      # o definitions.json no CloudAMQP.
+      - "messaging/**"
       - ".github/workflows/app-deploy.yml"
   workflow_dispatch:
     inputs:
@@ -29,6 +32,8 @@ env:
   ENVIRONMENT: prod
   NAMESPACE: mecanicadm
   SSM_DB_PREFIX: /mecanicadm/prod/finance
+  # Credenciais do broker CloudAMQP, compartilhadas com o workorder.
+  SSM_RABBITMQ_PREFIX: /mecanicadm/prod/rabbitmq
   # O repositório da imagem do finance precisa ser próprio do serviço: o
   # ci-cd.yml também publica a tag móvel "prod-latest" e ela colidiria com a do
   # workorder se os dois usassem o mesmo repositório.
@@ -98,14 +103,45 @@ jobs:
       # O JWT é compartilhado com o workorder: é criado no state do
       # mecanicadm-workorder-api-v4 e aqui só é consumido.
       # SMTP, New Relic e Mercado Pago continuam em GitHub Secrets.
+      #
+      # As credenciais do CloudAMQP vêm de GitHub Secrets e são publicadas no
+      # SSM. Assim o SSM continua sendo o contrato compartilhado (o workorder
+      # lerá os mesmos parâmetros) sem duplicar segredo em dois repositórios.
+      - name: Publica as credenciais do RabbitMQ no SSM
+        env:
+          RABBITMQ_USER: ${{ secrets.CLOUDAMQP_USER }}
+          RABBITMQ_PASSWORD: ${{ secrets.CLOUDAMQP_PASSWORD }}
+          RABBITMQ_VHOST: ${{ secrets.CLOUDAMQP_VHOST }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RABBITMQ_USER" ] || [ -z "$RABBITMQ_PASSWORD" ] || [ -z "$RABBITMQ_VHOST" ]; then
+            echo "::error::Configure os GitHub Secrets CLOUDAMQP_USER, CLOUDAMQP_PASSWORD e CLOUDAMQP_VHOST."
+            exit 1
+          fi
+
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/user" \
+            --type SecureString --value "$RABBITMQ_USER" --overwrite >/dev/null
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/password" \
+            --type SecureString --value "$RABBITMQ_PASSWORD" --overwrite >/dev/null
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/vhost" \
+            --type SecureString --value "$RABBITMQ_VHOST" --overwrite >/dev/null
+
       - name: Cria o Secret da aplicação
         env:
           JWT_SECRET_PARAM: /mecanicadm/prod/jwt_secret
         run: |
           set -euo pipefail
 
-          JWT_SECRET="$(aws ssm get-parameter --name "$JWT_SECRET_PARAM" \
-            --with-decryption --query Parameter.Value --output text)"
+          ssm() {
+            aws ssm get-parameter --name "$1" --with-decryption \
+              --query Parameter.Value --output text
+          }
+
+          JWT_SECRET="$(ssm "$JWT_SECRET_PARAM")"
+          RABBITMQ_USER="$(ssm "$SSM_RABBITMQ_PREFIX/user")"
+          RABBITMQ_PASSWORD="$(ssm "$SSM_RABBITMQ_PREFIX/password")"
+          RABBITMQ_VHOST="$(ssm "$SSM_RABBITMQ_PREFIX/vhost")"
 
           kubectl create secret generic mecanicadm-finance-secrets \
             --namespace ${{ env.NAMESPACE }} \
@@ -117,6 +153,9 @@ jobs:
             --from-literal=MERCADO_PAGO_PUBLIC_KEY="${{ secrets.MERCADO_PAGO_PUBLIC_KEY }}" \
             --from-literal=MERCADO_PAGO_CLIENT_ID="${{ secrets.MERCADO_PAGO_CLIENT_ID }}" \
             --from-literal=MERCADO_PAGO_CLIENT_SECRET="${{ secrets.MERCADO_PAGO_CLIENT_SECRET }}" \
+            --from-literal=RABBITMQ_USER="$RABBITMQ_USER" \
+            --from-literal=RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD" \
+            --from-literal=RABBITMQ_VHOST="$RABBITMQ_VHOST" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aguarda o Kong ficar pronto
@@ -133,6 +172,52 @@ jobs:
             -f devops/k8s/hpa.yaml \
             -f devops/k8s/ingress.yaml
 
+      # A aplicação não declara a topologia em runtime: sem as filas "budget" e
+      # "payment" os listeners ficam em retry. Importamos o definitions.json no
+      # vhost do CloudAMQP a cada deploy. A importação é idempotente para os
+      # mesmos recursos (não duplica exchanges, filas nem bindings) e também não
+      # remove os recursos do workorder, que compartilha o mesmo vhost.
+      - name: Importa a topologia do RabbitMQ (CloudAMQP)
+        run: |
+          set -euo pipefail
+
+          ssm() {
+            aws ssm get-parameter --name "$1" --with-decryption \
+              --query Parameter.Value --output text
+          }
+
+          # O host vem do ConfigMap aplicado no passo anterior (fonte única).
+          RABBITMQ_HOST="$(kubectl -n ${{ env.NAMESPACE }} get configmap mecanicadm-finance-config \
+            -o jsonpath='{.data.RABBITMQ_HOST}')"
+          if [ -z "$RABBITMQ_HOST" ]; then
+            echo "::error::RABBITMQ_HOST não encontrado no ConfigMap mecanicadm-finance-config."
+            exit 1
+          fi
+          RABBITMQ_USER="$(ssm "$SSM_RABBITMQ_PREFIX/user")"
+          RABBITMQ_PASSWORD="$(ssm "$SSM_RABBITMQ_PREFIX/password")"
+          RABBITMQ_VHOST="$(ssm "$SSM_RABBITMQ_PREFIX/vhost")"
+
+          # O definitions.json usa "vhost": "/" (ambiente local); no CloudAMQP
+          # o vhost é o da instância (planos compartilhados não usam "/").
+          # Removemos também vhosts/users/parameters/global_parameters/policies:
+          # o plano compartilhado não permite gerenciá-los e o import falharia.
+          #
+          # Geramos um arquivo (em vez de pipe no stdin) porque o --retry do curl
+          # não consegue rebobinar a entrada padrão para reenviar o corpo.
+          DEFINITIONS="$(mktemp)"
+          jq --arg vhost "$RABBITMQ_VHOST" \
+            'del(.vhosts, .users, .parameters, .global_parameters, .policies)
+             | (.exchanges[]?.vhost, .queues[]?.vhost, .bindings[]?.vhost) = $vhost' \
+            messaging/definitions.json > "$DEFINITIONS"
+
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-connrefused --max-time 60 \
+            --user "${RABBITMQ_USER}:${RABBITMQ_PASSWORD}" \
+            -H "content-type: application/json" \
+            -X POST "https://${RABBITMQ_HOST}/api/definitions" \
+            --data "@${DEFINITIONS}"
+          echo "Topologia importada no vhost ${RABBITMQ_VHOST} de ${RABBITMQ_HOST}."
+
       - name: Define a tag da imagem a implantar
         id: image
         run: |
@@ -143,6 +228,13 @@ jobs:
         run: |
           kubectl -n ${{ env.NAMESPACE }} set image deployment/mecanicadm-finance \
             mecanicadm-finance=${{ env.IMAGE_REPO }}:${{ steps.image.outputs.TAG }}
+
+      # ConfigMap/Secret não reiniciam pods sozinhos e, quando a tag não muda,
+      # o `set image` também não gera rollout. Reinicia explicitamente para as
+      # variáveis RABBITMQ_* chegarem aos containers.
+      - name: Reinicia o Deployment para aplicar ConfigMap e Secrets
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout restart deployment/mecanicadm-finance
 
       - name: Verifica o status do rollout
         run: |

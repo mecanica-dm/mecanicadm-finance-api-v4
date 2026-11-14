@@ -26,11 +26,13 @@ nenhum CIDR liberado por padrão.
   no SSM). Finance e workorder precisam validar os mesmos tokens, então este
   state apenas **consome** o segredo existente. Criá-lo nos dois states
   causaria conflito de recurso.
-- **RabbitMQ**: ainda não provisionado por decisão do projeto. O serviço depende
-  de um broker, mas ele não existe no `mecanicadm-infra-v4` nem neste state. A
-  criação fica para uma etapa separada (Amazon MQ ou RabbitMQ no EKS), porque
-  envolve custo e porque o app precisaria passar a usar TLS na porta 5671 caso
-  seja Amazon MQ.
+- **RabbitMQ**: o broker é gerenciado no CloudAMQP (plano compartilhado Little
+  Lemur) e **não** é criado por este state. As credenciais ficam no SSM em
+  `/mecanicadm/prod/rabbitmq/{user,password,vhost}` — publicadas pela pipeline
+  de deploy a partir dos GitHub Secrets `CLOUDAMQP_*` — e são materializadas no
+  Secret `mecanicadm-finance-secrets`. O host e a porta (`5671`, TLS) ficam no
+  ConfigMap. A topologia (exchanges, filas e bindings) precisa ser importada no
+  vhost do CloudAMQP antes do deploy.
 - **Namespace, Ingress, Kong, Route 53, HPA, image pull**: pertencem ao
   `mecanicadm-infra-v4` e aos manifests de Kubernetes.
 - **Credenciais de e-mail, New Relic e Mercado Pago**: continuam vindo dos
