@@ -30,14 +30,12 @@ public class CancelPaymentIntegrationListener {
 
         try {
             useCase.execute(new CancelMercadoPagoPaymentCommand(command.workOrderId()));
-        } catch (RuntimeException e) {
-            if (e instanceof DomainExceptionCore) {
-                rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
-                        command.workOrderId(),
-                        CancelPaymentIntegrationCommand.class.getSimpleName(),
-                        e,
-                        InboundMessageContext.current()));
-            }
+        } catch (DomainExceptionCore e) {
+            rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
+                    command.workOrderId(),
+                    CancelPaymentIntegrationCommand.class.getSimpleName(),
+                    e,
+                    InboundMessageContext.current()));
             throw e;
         }
     }

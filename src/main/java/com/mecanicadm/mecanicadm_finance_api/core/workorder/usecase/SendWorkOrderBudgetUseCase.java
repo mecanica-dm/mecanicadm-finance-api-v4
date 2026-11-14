@@ -20,6 +20,7 @@ public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudg
 
     private static final Logger logger = LoggerFactory.getLogger(SendWorkOrderBudgetUseCase.class);
 
+    @SuppressWarnings("java:S1075")
     private static final String BUDGET_DECISION_PATH = "/budget-decision/";
 
     private final BudgetSendTransactionService transactionService;

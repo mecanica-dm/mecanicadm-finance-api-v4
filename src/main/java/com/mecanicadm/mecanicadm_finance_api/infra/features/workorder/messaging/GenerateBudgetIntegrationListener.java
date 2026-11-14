@@ -33,14 +33,12 @@ public class GenerateBudgetIntegrationListener {
 
         try {
             createWorkOrderBudgetUseCase.execute(toCreateCommand(command));
-        } catch (RuntimeException e) {
-            if (e instanceof DomainExceptionCore) {
-                rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
-                        command.workOrderId(),
-                        GenerateBudgetIntegrationCommand.class.getSimpleName(),
-                        e,
-                        InboundMessageContext.current()));
-            }
+        } catch (DomainExceptionCore e) {
+            rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
+                    command.workOrderId(),
+                    GenerateBudgetIntegrationCommand.class.getSimpleName(),
+                    e,
+                    InboundMessageContext.current()));
             throw e;
         }
     }

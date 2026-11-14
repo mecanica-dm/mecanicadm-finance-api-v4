@@ -31,14 +31,12 @@ public class CancelBudgetIntegrationListener {
         try {
             cancelWorkOrderBudgetUseCase.execute(
                     new CancelWorkOrderBudgetCommand(command.workOrderId()));
-        } catch (RuntimeException e) {
-            if (e instanceof DomainExceptionCore) {
-                rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
-                        command.workOrderId(),
-                        CancelBudgetIntegrationCommand.class.getSimpleName(),
-                        e,
-                        InboundMessageContext.current()));
-            }
+        } catch (DomainExceptionCore e) {
+            rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
+                    command.workOrderId(),
+                    CancelBudgetIntegrationCommand.class.getSimpleName(),
+                    e,
+                    InboundMessageContext.current()));
             throw e;
         }
     }

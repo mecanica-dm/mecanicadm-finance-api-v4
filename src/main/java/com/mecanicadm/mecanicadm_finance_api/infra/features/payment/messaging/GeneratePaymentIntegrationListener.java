@@ -39,14 +39,12 @@ public class GeneratePaymentIntegrationListener {
             WorkOrderBudget budget = budgetGateway.findById(command.workOrderId())
                     .orElseThrow(BudgetExceptions.BudgetNotFound::new);
             createMercadoPagoOrderUseCase.execute(toCommand(command, budget));
-        } catch (RuntimeException e) {
-            if (e instanceof DomainExceptionCore) {
-                rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
-                        command.workOrderId(),
-                        GeneratePaymentIntegrationCommand.class.getSimpleName(),
-                        e,
-                        InboundMessageContext.current()));
-            }
+        } catch (DomainExceptionCore e) {
+            rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
+                    command.workOrderId(),
+                    GeneratePaymentIntegrationCommand.class.getSimpleName(),
+                    e,
+                    InboundMessageContext.current()));
             throw e;
         }
     }

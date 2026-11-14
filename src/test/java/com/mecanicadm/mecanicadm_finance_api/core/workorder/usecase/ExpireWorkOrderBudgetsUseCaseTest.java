@@ -43,7 +43,7 @@ class ExpireWorkOrderBudgetsUseCaseTest {
         assertThat(notified).isEqualTo(2);
         ArgumentCaptor<MessageHeader> events = ArgumentCaptor.forClass(MessageHeader.class);
         verify(publisher, times(2)).publish(events.capture());
-        assertThat(events.getAllValues()).allMatch(e -> e instanceof BudgetExpiredEvent);
+        assertThat(events.getAllValues()).allMatch(BudgetExpiredEvent.class::isInstance);
         assertThat(events.getAllValues().stream().map(MessageHeader::workOrderId)).containsExactly(workOrderA, workOrderB);
         verify(gateway).markExpiryNotified(tokenA);
         verify(gateway).markExpiryNotified(tokenB);
