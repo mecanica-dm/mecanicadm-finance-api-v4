@@ -28,10 +28,11 @@ nenhum CIDR liberado por padrão.
   causaria conflito de recurso.
 - **RabbitMQ**: o broker é gerenciado no CloudAMQP (plano compartilhado Little
   Lemur) e **não** é criado por este state. As credenciais ficam no SSM em
-  `/mecanicadm/prod/rabbitmq/{user,password,vhost}` e são materializadas no
-  Secret `mecanicadm-finance-secrets` pela pipeline de deploy. O host e a porta
-  (`5671`, TLS) ficam no ConfigMap. A topologia (exchanges, filas e bindings)
-  precisa ser importada no vhost do CloudAMQP antes do deploy.
+  `/mecanicadm/prod/rabbitmq/{user,password,vhost}` — publicadas pela pipeline
+  de deploy a partir dos GitHub Secrets `CLOUDAMQP_*` — e são materializadas no
+  Secret `mecanicadm-finance-secrets`. O host e a porta (`5671`, TLS) ficam no
+  ConfigMap. A topologia (exchanges, filas e bindings) precisa ser importada no
+  vhost do CloudAMQP antes do deploy.
 - **Namespace, Ingress, Kong, Route 53, HPA, image pull**: pertencem ao
   `mecanicadm-infra-v4` e aos manifests de Kubernetes.
 - **Credenciais de e-mail, New Relic e Mercado Pago**: continuam vindo dos

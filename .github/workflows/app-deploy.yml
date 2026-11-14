@@ -100,7 +100,30 @@ jobs:
       # O JWT é compartilhado com o workorder: é criado no state do
       # mecanicadm-workorder-api-v4 e aqui só é consumido.
       # SMTP, New Relic e Mercado Pago continuam em GitHub Secrets.
-      # As credenciais do RabbitMQ são do broker CloudAMQP e ficam no SSM.
+      #
+      # As credenciais do CloudAMQP vêm de GitHub Secrets e são publicadas no
+      # SSM. Assim o SSM continua sendo o contrato compartilhado (o workorder
+      # lerá os mesmos parâmetros) sem duplicar segredo em dois repositórios.
+      - name: Publica as credenciais do RabbitMQ no SSM
+        env:
+          RABBITMQ_USER: ${{ secrets.CLOUDAMQP_USER }}
+          RABBITMQ_PASSWORD: ${{ secrets.CLOUDAMQP_PASSWORD }}
+          RABBITMQ_VHOST: ${{ secrets.CLOUDAMQP_VHOST }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RABBITMQ_USER" ] || [ -z "$RABBITMQ_PASSWORD" ] || [ -z "$RABBITMQ_VHOST" ]; then
+            echo "::error::Configure os GitHub Secrets CLOUDAMQP_USER, CLOUDAMQP_PASSWORD e CLOUDAMQP_VHOST."
+            exit 1
+          fi
+
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/user" \
+            --type SecureString --value "$RABBITMQ_USER" --overwrite >/dev/null
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/password" \
+            --type SecureString --value "$RABBITMQ_PASSWORD" --overwrite >/dev/null
+          aws ssm put-parameter --name "$SSM_RABBITMQ_PREFIX/vhost" \
+            --type SecureString --value "$RABBITMQ_VHOST" --overwrite >/dev/null
+
       - name: Cria o Secret da aplicação
         env:
           JWT_SECRET_PARAM: /mecanicadm/prod/jwt_secret
