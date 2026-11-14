@@ -14,14 +14,7 @@ public class ProcessInboundMessageUseCase {
         this.inboxGateway = inboxGateway;
     }
 
-    /**
-     * Executa o handler uma única vez para a chave (messageId, consumer).
-     * <p>
-     * A reserva na inbox, a regra de negócio e a marcação como processada participam da mesma transação.
-     * Uma falha no handler provoca rollback, removendo a reserva e permitindo nova tentativa.
-     *
-     * @return {@code true} quando a mensagem foi processada; {@code false} quando era duplicada.
-     */
+
     @Transactional
     public boolean execute(InboxEntry entry, Runnable handler) {
         requireNonNull(entry, "entry");

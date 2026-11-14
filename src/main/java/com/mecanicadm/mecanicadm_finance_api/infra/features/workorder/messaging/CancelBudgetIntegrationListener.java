@@ -5,6 +5,8 @@ import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.command.Rejeita
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.CancelBudgetIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.CancelWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.command.CancelWorkOrderBudgetCommand;
+import com.mecanicadm.mecanicadm_finance_api.infra.messaging.inbox.InboundMessageContext;
+import com.mecanicadm.mecanicadm_finance_api.shared.exception.DomainExceptionCore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,13 +31,12 @@ public class CancelBudgetIntegrationListener {
         try {
             cancelWorkOrderBudgetUseCase.execute(
                     new CancelWorkOrderBudgetCommand(command.workOrderId()));
-        } catch (RuntimeException e) {
-            logger.error("Falha ao processar CancelBudgetIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
+        } catch (DomainExceptionCore e) {
             rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                     command.workOrderId(),
                     CancelBudgetIntegrationCommand.class.getSimpleName(),
-                    e));
+                    e,
+                    InboundMessageContext.current()));
             throw e;
         }
     }
