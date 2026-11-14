@@ -43,19 +43,6 @@ class VerifyPendingPaymentsJobTest {
     }
 
     @Test
-    @DisplayName("Webhook: por padrao exige assinatura e nao tem segredo")
-    void webhookPropertiesShouldRequireSignatureByDefault() {
-        com.mecanicadm.mecanicadm_finance_api.infra.features.payment.config.PaymentWebhookProperties p =
-                new com.mecanicadm.mecanicadm_finance_api.infra.features.payment.config.PaymentWebhookProperties();
-
-        assertThat(p.isSignatureRequired()).isTrue();
-        assertThat(p.hasSecret()).isFalse();
-        p.setSecret("x");
-        assertThat(p.hasSecret()).isTrue();
-        assertThat(p.getSecret()).isEqualTo("x");
-    }
-
-    @Test
     @DisplayName("Propriedades devem ter valores padrao e aceitar alteracao")
     void propertiesShouldHaveDefaultsAndSetters() {
         PaymentVerificationProperties p = new PaymentVerificationProperties();

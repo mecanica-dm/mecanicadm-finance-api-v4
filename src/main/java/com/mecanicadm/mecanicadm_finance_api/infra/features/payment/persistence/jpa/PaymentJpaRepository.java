@@ -21,10 +21,6 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentJpaEntity, UU
 
     Optional<PaymentJpaEntity> findFirstByExternalReferenceOrderByCreatedAtDesc(String externalReference);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT p FROM PaymentJpaEntity p WHERE p.mercadoPagoOrderId = :orderId")
-    Optional<PaymentJpaEntity> findByMercadoPagoOrderIdForUpdate(@Param("orderId") String orderId);
-
     @Query(value = """
             SELECT * FROM payments
             WHERE LOWER(status) NOT IN (:finalStatuses)

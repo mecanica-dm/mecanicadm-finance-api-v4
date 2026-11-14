@@ -51,11 +51,6 @@ public class PaymentGatewayImpl implements PaymentGateway {
     }
 
     @Override
-    public Optional<Payment> findByMercadoPagoOrderIdForUpdate(String mercadoPagoOrderId) {
-        return jpaRepository.findByMercadoPagoOrderIdForUpdate(mercadoPagoOrderId).map(PaymentJpaMapper::toDomain);
-    }
-
-    @Override
     public Optional<Payment> findLatestByExternalReference(String externalReference) {
         return jpaRepository.findFirstByExternalReferenceOrderByCreatedAtDesc(externalReference).map(PaymentJpaMapper::toDomain);
     }

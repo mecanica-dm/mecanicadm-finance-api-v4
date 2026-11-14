@@ -18,6 +18,4 @@ public interface PaymentGateway {
     Optional<Payment> findLatestByExternalReference(String externalReference);
 
     List<Payment> findPendingForVerification(Instant updatedBefore, int limit);
-
-    Optional<Payment> findByMercadoPagoOrderIdForUpdate(String mercadoPagoOrderId);
 }

@@ -109,34 +109,6 @@ class VerifyPendingPaymentsUseCaseTest {
     }
 
     @Test
-    @DisplayName("Webhook: deve conferir o pedido avisado no Mercado Pago e publicar o resultado quando mudar")
-    void shouldVerifyOrderAnnouncedByWebhook() throws Exception {
-        Payment payment = pending();
-        when(paymentGateway.findByMercadoPagoOrderIdForUpdate("ORD1")).thenReturn(java.util.Optional.of(payment));
-        when(tokenProvider.accessToken()).thenReturn("token");
-        when(paymentGateway.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
-        when(orderGateway.getOrder("ORD1", "token")).thenReturn(order("processed", "processed"));
-
-        assertThat(useCase.verifyByOrderId("ORD1")).isTrue();
-
-        verify(eventService).publishOutcome(any(Payment.class), eq(workOrderId));
-    }
-
-    @Test
-    @DisplayName("Webhook: pedido desconhecido ou pagamento ja em estado final deve ser ignorado, sem consultar o Mercado Pago")
-    void shouldIgnoreUnknownOrFinalPaymentFromWebhook() throws Exception {
-        when(paymentGateway.findByMercadoPagoOrderIdForUpdate("DESCONHECIDO")).thenReturn(java.util.Optional.empty());
-        Payment confirmed = new Payment(UUID.randomUUID(), workOrderId.toString(), workOrderId.toString(), "ORD9", "PAY9", "processed", null,
-                BigDecimal.TEN, 1, "visa", "a@a.com", order("processed", "processed"), Instant.now(), Instant.now());
-        when(paymentGateway.findByMercadoPagoOrderIdForUpdate("ORD9")).thenReturn(java.util.Optional.of(confirmed));
-
-        assertThat(useCase.verifyByOrderId("DESCONHECIDO")).isFalse();
-        assertThat(useCase.verifyByOrderId("ORD9")).isFalse();
-
-        verifyNoInteractions(orderGateway, eventService, tokenProvider);
-    }
-
-    @Test
     @DisplayName("Sem pagamentos pendentes, nao deve pedir token nem consultar o Mercado Pago")
     void shouldDoNothingWhenThereIsNothingPending() {
         when(paymentGateway.findPendingForVerification(any(), anyInt())).thenReturn(List.of());

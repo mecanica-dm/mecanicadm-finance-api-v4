@@ -53,19 +53,6 @@ public class VerifyPendingPaymentsUseCase implements UseCase<VerifyPendingPaymen
         return changed;
     }
 
-    @Transactional
-    public boolean verifyByOrderId(String mercadoPagoOrderId) {
-        Payment payment = paymentGateway.findByMercadoPagoOrderIdForUpdate(mercadoPagoOrderId).orElse(null);
-        if (payment == null) {
-            logger.info("Webhook do Mercado Pago para o pedido {}, que nao e de nenhum pagamento deste servico; ignorado", mercadoPagoOrderId);
-            return false;
-        }
-        if (PaymentStatuses.FINAL.contains(PaymentStatuses.effective(payment))) {
-            return false;
-        }
-        return verify(payment, accessTokenProvider.accessToken());
-    }
-
     private boolean verify(Payment payment, String accessToken) {
         MercadoPagoOrder order;
         try {

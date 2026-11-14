@@ -32,13 +32,6 @@ class PublicRoutesSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("O webhook do Mercado Pago deve ser publico (sem JWT): sem segredo configurado, responde 503 e nao 401")
-    void shouldServeWebhookWithoutJwt() throws Exception {
-        mockMvc.perform(post("/v1/payments/webhooks/mercado-pago").param("data.id", "ORD1").param("type", "order"))
-                .andExpect(status().isServiceUnavailable());
-    }
-
-    @Test
     @DisplayName("As rotas internas do orcamento e do pagamento devem continuar exigindo JWT")
     void shouldRequireJwtForInternalRoutes() throws Exception {
         mockMvc.perform(post("/budgets/{id}/send", UUID.randomUUID()))

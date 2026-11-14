@@ -57,16 +57,6 @@ class PendingPaymentsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.springframework.transaction.annotation.Transactional
-    @DisplayName("Deve buscar o pagamento pelo pedido do Mercado Pago, com lock de escrita")
-    void shouldFindByMercadoPagoOrderIdWithLock() {
-        UUID id = payment("created", "ORD-LOCK", Instant.now().minusSeconds(60));
-
-        assertThat(gateway.findByMercadoPagoOrderIdForUpdate("ORD-LOCK")).map(Payment::id).contains(id);
-        assertThat(gateway.findByMercadoPagoOrderIdForUpdate("ORD-INEXISTENTE")).isEmpty();
-    }
-
-    @Test
     @DisplayName("Deve respeitar o limite do lote e a ordem do mais antigo para o mais novo")
     void shouldRespectLimitAndOrder() {
         UUID oldest = payment("created", "ORD1", Instant.now().minusSeconds(900));

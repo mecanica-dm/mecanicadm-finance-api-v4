@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({MercadoPagoProperties.class, PaymentVerificationProperties.class, PaymentWebhookProperties.class})
+@EnableConfigurationProperties({MercadoPagoProperties.class, PaymentVerificationProperties.class})
 public class PaymentConfiguration {
 
     @Bean

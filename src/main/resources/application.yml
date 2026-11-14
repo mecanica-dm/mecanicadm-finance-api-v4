@@ -105,9 +105,6 @@ app:
       interval-ms: "${BUDGET_EXPIRATION_INTERVAL_MS:60000}"
       batch-size: "${BUDGET_EXPIRATION_BATCH_SIZE:50}"
   payment:
-    webhook:
-      secret: "${MERCADO_PAGO_WEBHOOK_SECRET:}"
-      signature-required: "${PAYMENT_WEBHOOK_SIGNATURE_REQUIRED:true}"
     verification:
       enabled: "${PAYMENT_VERIFICATION_ENABLED:true}"
       initial-delay-ms: "${PAYMENT_VERIFICATION_INITIAL_DELAY_MS:60000}"
