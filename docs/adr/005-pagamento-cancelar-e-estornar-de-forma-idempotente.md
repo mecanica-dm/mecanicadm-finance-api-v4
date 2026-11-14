@@ -69,9 +69,8 @@ A saga também pode pedir o cancelamento **enquanto o link ainda está sendo ger
   estorno total, e a referência da API lista `transactions` como obrigatório. Seguimos o guia e testamos com um servidor
   simulado; falta confirmar contra o ambiente de testes real.
 - Um pedido que fique pendente e seja pago logo antes de um cancelamento ainda pode produzir um 409 `cannot_cancel_order`
-  do Mercado Pago, que chega à saga como recusa. A [RFC 002](../rfc/002-verificacao-de-pagamento.md) reduz a janela: o webhook
-  ([ADR 007](007-webhook-do-mercado-pago.md)) e uma rotina de consulta publicam o resultado, de modo que o Finance fica sabendo
-  do pagamento.
+  do Mercado Pago, que chega à saga como recusa. A [RFC 002](../rfc/002-verificacao-de-pagamento.md) reduz a janela: a rotina
+  de consulta publica o resultado, de modo que o Finance fica sabendo do pagamento.
 - O cartão de teste fixo serve para a demonstração, não para produção.
 
 ## 4. Relação com Outras Decisões

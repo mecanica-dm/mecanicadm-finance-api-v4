@@ -81,7 +81,6 @@ flowchart LR
     fn_in --> q_payment --> fn_api
 
     fn_api -->|"cria, cancela e estorna pedidos"| mp
-    mp -.->|"webhook do pagamento"| fn_api
     fn_api -->|"orçamento com PDF e links"| email
 ```
 
@@ -243,7 +242,7 @@ sequenceDiagram
     Note over SG: saga concluída (COMPLETED)
 ```
 
-#### Pagamento (com webhook do Mercado Pago)
+#### Pagamento
 
 ```mermaid
 sequenceDiagram
@@ -259,7 +258,7 @@ sequenceDiagram
     alt aprovado no ato
         FN->>SG: PaymentConfirmedEvent
     else ficou pendente
-        MP-)FN: webhook (x-signature) ou rotina de consulta
+        Note over FN: a rotina de consulta reconcilia a cada minuto
         FN->>MP: GET /v1/orders/{id}
         FN->>SG: PaymentConfirmedEvent ou PaymentFailedEvent
     end
@@ -294,7 +293,7 @@ stateDiagram-v2
 - **📧 Envio e Decisão pelo Cliente**: O orçamento vai por e-mail, com PDF e links; o cliente aprova, rejeita ou pede alterações por um **link público de uso único e válido por 24 horas**, sem precisar de conta.
 - **⌛ Expiração**: Quando o link vence sem resposta, uma rotina avisa a saga uma única vez, e ela cancela a OS.
 - **💳 Pagamento com Mercado Pago**: Gera o pedido (API de Orders) a partir do orçamento, cancela o pedido ainda não pago e estorna o pagamento confirmado, tudo de forma idempotente.
-- **🔔 Webhook e Verificação**: O resultado do pagamento chega pelo **webhook do Mercado Pago** (protegido por assinatura) e por uma rotina de consulta que reconcilia.
+- **🔔 Verificação do pagamento**: Uma rotina consulta o Mercado Pago a cada minuto e publica o resultado dos pagamentos que ficaram pendentes.
 - **🎼 Participação na Saga**: Executa os commands (gerar e cancelar orçamento; gerar, cancelar e estornar pagamento) e publica os eventos; quando um command falha por regra de negócio, avisa a saga com o `FinanceCommandRejectedEvent`.
 - **🔐 Autenticação e Autorização**: Segurança baseada em JWT (emitido pela Workorder).
 - **🌐 Suporte a Múltiplos Idiomas**: Mensagens de erro e validação em Português, Inglês e Espanhol.
@@ -308,7 +307,7 @@ stateDiagram-v2
 | **Core**         | Java 21, Spring Boot 3.4                                            |
 | **Dados**        | Spring Data JPA, PostgreSQL, Flyway (Migrations)                    |
 | **Mensageria**   | RabbitMQ (Spring AMQP), padrão Outbox/Inbox                         |
-| **Pagamento**    | Mercado Pago (API de Orders), webhook com assinatura                |
+| **Pagamento**    | Mercado Pago (API de Orders), verificação periódica               |
 | **Documentos**   | Thymeleaf + Flying Saucer (PDF do orçamento), Spring Mail           |
 | **Segurança**    | Spring Security, JWT (Java JWT)                                     |
 | **Documentação** | Springdoc (Swagger/OpenAPI 3)                                       |
@@ -348,7 +347,6 @@ src/main/java/com/mecanicadm/mecanicadm_finance_api
 - **[ADR 004 - Evento de recusa de command 🆕](docs/adr/004-evento-de-recusa-de-command.md)**
 - **[ADR 005 - Pagamento: gerar, cancelar e estornar de forma idempotente 🆕](docs/adr/005-pagamento-cancelar-e-estornar-de-forma-idempotente.md)**
 - **[ADR 006 - Rota pública de decisão do orçamento 🆕](docs/adr/006-rota-publica-de-decisao-do-orcamento.md)**
-- **[ADR 007 - Webhook do Mercado Pago 🆕](docs/adr/007-webhook-do-mercado-pago.md)**
 
 ### 📝 RFCs (`docs/rfc/`):
 
@@ -384,14 +382,9 @@ O pagamento é gerado a partir do orçamento da OS (total, descrição e dados d
 | `CancelPaymentIntegrationCommand` | Cancela o pedido ainda não pago (sem pagamento, só confirma; pagamento já confirmado é recusado) | `PaymentCanceledEvent` |
 | `RefundPaymentIntegrationCommand` | Estorna o pagamento confirmado (sem pagamento ou não confirmado, recusa) | `PaymentRefundedEvent` |
 
-**Verificação do pagamento:** o resultado do pedido nem sempre vem no ato da criação. Ele chega por dois caminhos que se complementam ([RFC 002](docs/rfc/002-verificacao-de-pagamento.md)):
+**Verificação do pagamento:** o resultado do pedido nem sempre vem no ato da criação. Por isso a **rotina de consulta** ([RFC 002](docs/rfc/002-verificacao-de-pagamento.md)) pergunta ao Mercado Pago (`GET /v1/orders/{id}`), a cada minuto, o estado dos pagamentos ainda não finais e, se o resultado mudou, atualiza o registro e publica `PaymentConfirmedEvent` ou `PaymentFailedEvent` uma única vez. Não precisa expor a API na internet. Pagamentos em estado final (confirmado, recusado, cancelado ou estornado) não são consultados de novo.
 
-- **Webhook do Mercado Pago** (resposta em segundos): `POST /v1/payments/webhooks/mercado-pago`, rota pública protegida pela assinatura (`x-signature`). O Finance usa só o `data.id`, consulta o pedido no Mercado Pago (`GET /v1/orders/{id}`) e, se o resultado mudou, atualiza o registro e publica `PaymentConfirmedEvent` ou `PaymentFailedEvent` uma única vez ([ADR 007](docs/adr/007-webhook-do-mercado-pago.md)).
-- **Rotina de consulta** (reconciliação): a cada minuto consulta os pagamentos ainda em estado não final, para o caso de uma notificação se perder ou o webhook não estar configurado.
-
-Pagamentos em estado final (confirmado, recusado, cancelado ou estornado) não são consultados de novo.
-
-**Para ligar o webhook:** (1) exponha a API em uma URL pública HTTPS (em desenvolvimento, um túnel como o ngrok: `ngrok http 8082`); (2) no painel do Mercado Pago, em *Suas integrações, Webhooks*, informe `https://<url-publica>/api/v1/payments/webhooks/mercado-pago` e marque o evento **Order (Mercado Pago)**; (3) copie a **assinatura secreta** gerada para `MERCADO_PAGO_WEBHOOK_SECRET` e reinicie a API. Sem o segredo, o endpoint responde 503 e nada é processado (só a rotina de consulta funciona).
+O webhook do Mercado Pago foi avaliado e não foi adotado (exigiria URL pública HTTPS e uma rota sem JWT); a RFC 002 registra o motivo.
 
 ---
 
@@ -427,7 +420,7 @@ O contrato do `GenerateBudgetIntegrationCommand` é o que o Finance lê, e a sag
 |---|---|---|
 | `OutboxRelay` | Publica no RabbitMQ os eventos pendentes da outbox e limpa os já publicados | `OUTBOX_*` |
 | `BudgetExpirationJob` | Avisa a saga dos orçamentos cujo link de decisão venceu ([RFC 001](docs/rfc/001-expiracao-do-orcamento.md)) | `BUDGET_EXPIRATION_ENABLED`, `_INTERVAL_MS` (60000), `_BATCH_SIZE` (50) |
-| `VerifyPendingPaymentsJob` | Consulta no Mercado Pago os pagamentos pendentes e publica o resultado, como reconciliação do webhook ([RFC 002](docs/rfc/002-verificacao-de-pagamento.md)) | `PAYMENT_VERIFICATION_ENABLED`, `_INTERVAL_MS` (60000), `_MIN_AGE_SECONDS` (60), `_BATCH_SIZE` (20) |
+| `VerifyPendingPaymentsJob` | Consulta no Mercado Pago os pagamentos pendentes e publica o resultado, como verificação do pagamento ([RFC 002](docs/rfc/002-verificacao-de-pagamento.md)) | `PAYMENT_VERIFICATION_ENABLED`, `_INTERVAL_MS` (60000), `_MIN_AGE_SECONDS` (60), `_BATCH_SIZE` (20) |
 | `InboxCleanupJob` | Limpa do inbox as mensagens processadas há mais de `INBOX_RETENTION_DAYS` | `INBOX_*` |
 
 As rotinas de expiração e de verificação usam `FOR UPDATE SKIP LOCKED`, então várias instâncias do Finance não repetem o trabalho nem publicam o mesmo evento duas vezes.
@@ -449,7 +442,6 @@ Para habilitar o envio dos dados, configure a variável de ambiente **`NEW_RELIC
 - [Docker](https://www.docker.com/get-started) e [Docker Compose](https://docs.docker.com/compose/install/) v2.20 ou mais novo. Não é preciso instalar Java nem Maven: a imagem compila o projeto.
 - Opcional: copie `.env.example` para `.env` (`cp .env.example .env`). Sem `.env`, tudo sobe com valores de desenvolvimento. Para o pagamento, informe as credenciais de **teste** do Mercado Pago:
   - `MERCADO_PAGO_ACCESS_TOKEN` e `MERCADO_PAGO_PUBLIC_KEY`: sem elas, o pagamento falha e a saga fica em `PAUSED` (`PaymentLinkGenerationFailed`).
-  - `MERCADO_PAGO_WEBHOOK_SECRET`: a assinatura secreta do webhook (veja "Pagamento").
   - `FINANCE_PUBLIC_URL`: o endereço público desta API, usado nos links do e-mail (padrão `http://localhost:8082/api`).
   - `JWT_SECRET`: o mesmo da Workorder API e da Saga API.
 
@@ -519,7 +511,7 @@ A especificação OpenAPI 3 pode ser acessada em `/api/v3/api-docs`.
 
 ### 🔑 Autenticação
 
-Os endpoints (sob `/api`) exigem o **JWT emitido pela Workorder API** (`POST http://localhost:8080/api/user/login`, com o usuário do seed `admin@mecanicadm.com` e a senha `Senha123`), enviado em `Authorization: Bearer <token>`. O `JWT_SECRET` precisa ser o mesmo nos serviços. São públicos: o Swagger, o Actuator, o link de decisão do cliente (`/budget-decision/**`, protegido pelo token do próprio link) e o webhook do Mercado Pago (`POST /v1/payments/webhooks/mercado-pago`, protegido pela assinatura).
+Os endpoints (sob `/api`) exigem o **JWT emitido pela Workorder API** (`POST http://localhost:8080/api/user/login`, com o usuário do seed `admin@mecanicadm.com` e a senha `Senha123`), enviado em `Authorization: Bearer <token>`. O `JWT_SECRET` precisa ser o mesmo nos serviços. São públicos: o Swagger, o Actuator, o link de decisão do cliente (`/budget-decision/**`, protegido pelo token do próprio link).
 
 ### Principais Endpoints
 
@@ -552,7 +544,6 @@ As rotas também respondem em `/work-orders/{workOrderId}/budget/...`.
 | POST   | `/v1/payments/orders/simulate` | Simula a criação de um pedido |
 | GET    | `/v1/payments/orders/{id}` | Consulta um pagamento pelo id |
 | POST   | `/v1/payments/auth/token` | Gera o token de acesso do Mercado Pago |
-| POST   | `/v1/payments/webhooks/mercado-pago` | Recebe as notificações do Mercado Pago (**público**, protegido pela assinatura) |
 
 > O pagamento da OS, o cancelamento do link e o estorno chegam como **commands da saga**; os endpoints acima servem a testes e à integração com o Mercado Pago.
 
@@ -570,7 +561,7 @@ Os relatórios de cobertura de testes (Jacoco) são gerados em `target/site/jaco
 
 **Evidência de cobertura** (JaCoCo, `mvn verify`, 12/11/2026): **89,5% das linhas**, 90,5% das instruções e 75,1% dos branches. A métrica combinada de linhas e branches que o SonarCloud usa fica em 86,6%. As linhas e a métrica combinada ficam acima do mínimo de 80% do desafio. O CI publica o relatório no SonarCloud.
 
-As rotinas têm testes unitários (`ExpireWorkOrderBudgetsUseCaseTest`, `VerifyPendingPaymentsUseCaseTest`, os dois `...JobTest`) e de integração contra o PostgreSQL (`JdbcBudgetExpiryGatewayIT`, `PendingPaymentsIT`). O webhook tem testes do validador de assinatura e do controller. Os testes de contrato com a saga são o `GenerateBudgetContractTest` (lê o command no formato que a saga publica) e o `BudgetEventsSerializationTest` (os campos que a saga lê dos eventos). O `PublicRoutesSecurityIT` confere o que é público e o que exige JWT.
+As rotinas têm testes unitários (`ExpireWorkOrderBudgetsUseCaseTest`, `VerifyPendingPaymentsUseCaseTest`, os dois `...JobTest`) e de integração contra o PostgreSQL (`JdbcBudgetExpiryGatewayIT`, `PendingPaymentsIT`). Os testes de contrato com a saga são o `GenerateBudgetContractTest` (lê o command no formato que a saga publica) e o `BudgetEventsSerializationTest` (os campos que a saga lê dos eventos). O `PublicRoutesSecurityIT` confere o que é público e o que exige JWT.
 
 ---
 

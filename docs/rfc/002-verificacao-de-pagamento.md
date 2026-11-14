@@ -1,6 +1,6 @@
 # RFC 002 - Verificação do Pagamento
 
-* **Status**: Aprovado (implementado em 12/11/2026: rotina de consulta e webhook)
+* **Status**: Aprovado (implementado em 12/11/2026: rotina de consulta; webhook avaliado e não adotado)
 * **Data**: 12/11/2026
 * **Autores**: Time de desenvolvimento
 * **Resumo**: Define como o Finance **sabe o resultado de um pagamento depois da criação do pedido**, que antes era
@@ -29,7 +29,7 @@ pendente e fosse aprovado (ou recusado) depois, o Finance não percebia, e a sag
 
 ## 4. Alternativas Consideradas
 
-### 4.1. Webhook do Mercado Pago
+### 4.1. Webhook do Mercado Pago (não adotada)
 
 O Mercado Pago chama uma rota pública do Finance a cada mudança do pedido.
 
@@ -55,9 +55,9 @@ mudar.
 
 ## 5. Solução adotada
 
-Implementada a **alternativa 4.2** (rotina de consulta), que funciona sem expor a API e serve de reconciliação, e o **webhook
-(4.1)** para a resposta rápida, quando houver URL pública ([ADR 007](../adr/007-webhook-do-mercado-pago.md)). Os dois usam o mesmo
-caso de uso:
+Implementada a **alternativa 4.2** (rotina de consulta), que funciona sem expor a API e cumpre o requisito de verificação. O
+webhook (4.1) chegou a ser implementado e foi **removido**: dependia de URL pública HTTPS e de uma rota sem JWT, a latência da rotina
+(1 minuto) é aceitável para este caso, e o ganho não compensava a exceção de segurança e a configuração extra. A tabela abaixo descreve a rotina:
 
 | Aspecto | Solução |
 |---|---|
@@ -67,7 +67,6 @@ caso de uso:
 | Efeito | Atualiza o status local e publica `PaymentConfirmedEvent` ou `PaymentFailedEvent`, uma única vez, pela outbox. Se nada mudou, só renova a data da verificação |
 | Idempotência | A mudança de estado local e o evento saem na mesma transação; estado final não é consultado de novo |
 | Cancelamento | Pagamento cancelado ou estornado pela própria saga não é consultado |
-| Webhook | `POST /v1/payments/webhooks/mercado-pago`, público e protegido pela assinatura (`x-signature`); usa só o `data.id`, consulta o pedido no Mercado Pago e aplica a mesma regra, com `FOR UPDATE` para não competir com a rotina |
 
 ## 6. Impacto e Riscos
 
@@ -81,12 +80,11 @@ caso de uso:
 1. `getOrder` na porta do Mercado Pago e na implementação (`GET /v1/orders/{id}`). (feito)
 2. `VerifyPendingPaymentsJob`, `VerifyPendingPaymentsUseCase` e a consulta dos pendentes com `SKIP LOCKED` (`PaymentGateway.findPendingForVerification`). (feito)
 3. Publicar os eventos pela outbox, na mesma transação da atualização, reaproveitando o `PaymentOrderEventService`. (feito)
-4. Testes: `VerifyPendingPaymentsUseCaseTest` (confirmado, recusado, sem mudança, falha do provedor, sem pendentes e o caminho do webhook), `VerifyPendingPaymentsJobTest`, `PendingPaymentsIT` e o `getOrder` em `MercadoPagoGatewaysTest`. (feito)
-5. Webhook: `MercadoPagoWebhookController`, `MercadoPagoWebhookSignatureValidator` e `VerifyPendingPaymentsUseCase.verifyByOrderId`, com os testes `MercadoPagoWebhookControllerTest`, `MercadoPagoWebhookSignatureValidatorTest` e o `PublicRoutesSecurityIT`. (feito)
+4. Testes: `VerifyPendingPaymentsUseCaseTest` (confirmado, recusado, sem mudança, falha do provedor e sem pendentes), `VerifyPendingPaymentsJobTest`, `PendingPaymentsIT` e o `getOrder` em `MercadoPagoGatewaysTest`. (feito)
 
 ## 8. Decisão Final
 
 | Item        | Detalhe                                      |
 |-------------|----------------------------------------------|
-| Verificação | Rotina de consulta e webhook                 |
+| Verificação | Rotina de consulta                           |
 | Status      | Aprovada e implementada                      |
