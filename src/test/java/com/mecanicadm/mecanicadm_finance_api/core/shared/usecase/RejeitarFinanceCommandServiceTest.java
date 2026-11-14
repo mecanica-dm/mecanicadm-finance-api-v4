@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,7 +69,7 @@ class RejeitarFinanceCommandServiceTest {
         service.execute(new RejeitarFinanceCommandCommand(workOrderId, "CancelBudgetIntegrationCommand", new RuntimeException("c"), UUID.randomUUID()));
 
         ArgumentCaptor<FinanceCommandRejectedEvent> captor = ArgumentCaptor.forClass(FinanceCommandRejectedEvent.class);
-        verify(eventPublisher, org.mockito.Mockito.times(3)).publish(captor.capture());
+        verify(eventPublisher, times(3)).publish(captor.capture());
         assertThat(captor.getAllValues().get(0).messageId()).isEqualTo(captor.getAllValues().get(1).messageId());
         assertThat(captor.getAllValues().get(0).messageId()).isNotEqualTo(captor.getAllValues().get(2).messageId());
     }

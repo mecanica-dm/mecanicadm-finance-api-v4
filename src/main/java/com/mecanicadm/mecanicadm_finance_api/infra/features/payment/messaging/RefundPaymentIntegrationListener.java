@@ -31,8 +31,6 @@ public class RefundPaymentIntegrationListener {
         try {
             useCase.execute(new RefundMercadoPagoPaymentCommand(command.workOrderId()));
         } catch (RuntimeException e) {
-            logger.error("Falha ao processar RefundPaymentIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
             if (e instanceof DomainExceptionCore) {
                 rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                         command.workOrderId(),

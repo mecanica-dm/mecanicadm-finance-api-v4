@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +42,7 @@ class ExpireWorkOrderBudgetsUseCaseTest {
 
         assertThat(notified).isEqualTo(2);
         ArgumentCaptor<MessageHeader> events = ArgumentCaptor.forClass(MessageHeader.class);
-        verify(publisher, org.mockito.Mockito.times(2)).publish(events.capture());
+        verify(publisher, times(2)).publish(events.capture());
         assertThat(events.getAllValues()).allMatch(e -> e instanceof BudgetExpiredEvent);
         assertThat(events.getAllValues().stream().map(MessageHeader::workOrderId)).containsExactly(workOrderA, workOrderB);
         verify(gateway).markExpiryNotified(tokenA);

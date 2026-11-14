@@ -34,8 +34,6 @@ public class GenerateBudgetIntegrationListener {
         try {
             createWorkOrderBudgetUseCase.execute(toCreateCommand(command));
         } catch (RuntimeException e) {
-            logger.error("Falha ao processar GenerateBudgetIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
             if (e instanceof DomainExceptionCore) {
                 rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                         command.workOrderId(),

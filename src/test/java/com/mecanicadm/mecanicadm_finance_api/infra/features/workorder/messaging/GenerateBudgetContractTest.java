@@ -28,7 +28,7 @@ class GenerateBudgetContractTest {
 
         GenerateBudgetIntegrationCommand command = mapper.readValue(SAGA_PAYLOAD, GenerateBudgetIntegrationCommand.class);
 
-        assertThat(command.workOrderId().toString()).isEqualTo("a06ed083-93b2-4313-b9bc-fc3626b6b6b8");
+        assertThat(command.workOrderId()).hasToString("a06ed083-93b2-4313-b9bc-fc3626b6b6b8");
         assertThat(command.workOrderSnapshot().totalPrice()).isEqualByComparingTo("720.00");
         assertThat(command.workOrderSnapshot().status()).isEqualTo(WorkOrderBudgetStatus.PENDING);
         assertThat(command.workOrderSnapshot().client().name()).isEqualTo("Deliveries Express");

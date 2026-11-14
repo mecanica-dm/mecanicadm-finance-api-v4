@@ -40,8 +40,6 @@ public class GeneratePaymentIntegrationListener {
                     .orElseThrow(BudgetExceptions.BudgetNotFound::new);
             createMercadoPagoOrderUseCase.execute(toCommand(command, budget));
         } catch (RuntimeException e) {
-            logger.error("Falha ao processar GeneratePaymentIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
             if (e instanceof DomainExceptionCore) {
                 rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                         command.workOrderId(),

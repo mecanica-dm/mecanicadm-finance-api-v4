@@ -17,6 +17,7 @@ import java.util.List;
 public class MercadoPagoOrderGatewayImpl implements MercadoPagoOrderGateway {
 
     private static final String BASE_URL = "https://api.mercadopago.com";
+    private static final String BEARER_PREFIX = "Bearer ";
     private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
     private static final String TYPE_ONLINE = "online";
     private static final String PROCESSING_MODE_AUTOMATIC = "automatic";
@@ -37,7 +38,7 @@ public class MercadoPagoOrderGatewayImpl implements MercadoPagoOrderGateway {
             MercadoPagoOrder order = restClient.post()
                     .uri("/v1/orders")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header(HttpHeaders.AUTHORIZATION, BEARER_PREFIX + accessToken)
                     .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
                     .body(toRequest(orderData))
                     .retrieve()
@@ -59,7 +60,7 @@ public class MercadoPagoOrderGatewayImpl implements MercadoPagoOrderGateway {
         try {
             MercadoPagoOrder order = restClient.get()
                     .uri("/v1/orders/{id}", orderId)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header(HttpHeaders.AUTHORIZATION, BEARER_PREFIX + accessToken)
                     .retrieve()
                     .body(MercadoPagoOrder.class);
 
@@ -89,7 +90,7 @@ public class MercadoPagoOrderGatewayImpl implements MercadoPagoOrderGateway {
             MercadoPagoOrder order = restClient.post()
                     .uri("/v1/orders/{id}/{action}", orderId, action)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header(HttpHeaders.AUTHORIZATION, BEARER_PREFIX + accessToken)
                     .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
                     .retrieve()
                     .body(MercadoPagoOrder.class);

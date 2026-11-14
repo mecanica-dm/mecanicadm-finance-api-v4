@@ -32,8 +32,6 @@ public class CancelBudgetIntegrationListener {
             cancelWorkOrderBudgetUseCase.execute(
                     new CancelWorkOrderBudgetCommand(command.workOrderId()));
         } catch (RuntimeException e) {
-            logger.error("Falha ao processar CancelBudgetIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
             if (e instanceof DomainExceptionCore) {
                 rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                         command.workOrderId(),

@@ -26,8 +26,9 @@ class PaymentStatusesTest {
     @Test
     @DisplayName("Estados finais devem incluir confirmados, recusados, cancelados e estornados, e nao os pendentes")
     void shouldKnowFinalStatuses() {
-        assertThat(PaymentStatuses.FINAL).contains("processed", "approved", "failed", "rejected", "canceled", "expired", "refunded");
-        assertThat(PaymentStatuses.FINAL).doesNotContain("created", "action_required", "pending");
+        assertThat(PaymentStatuses.FINAL)
+                .contains("processed", "approved", "failed", "rejected", "canceled", "expired", "refunded")
+                .doesNotContain("created", "action_required", "pending");
     }
 
     @Test

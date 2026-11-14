@@ -12,7 +12,7 @@ public final class PaymentStatuses {
 
     private static final Set<String> CONFIRMED = Set.of("approved", "authorized", "completed", "paid", "processed");
 
-    private static final Set<String> FAILED = Set.of("canceled", "cancelled", "expired", "failed", "rejected");
+    private static final Set<String> FAILED = Set.of(CANCELED, "cancelled", "expired", "failed", "rejected");
 
     public static final Set<String> FINAL = Stream.of(CONFIRMED, FAILED, Set.of(REFUNDED))
             .flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());

@@ -31,8 +31,6 @@ public class CancelPaymentIntegrationListener {
         try {
             useCase.execute(new CancelMercadoPagoPaymentCommand(command.workOrderId()));
         } catch (RuntimeException e) {
-            logger.error("Falha ao processar CancelPaymentIntegrationCommand para a OS {}: {}",
-                    command.workOrderId(), e.getMessage(), e);
             if (e instanceof DomainExceptionCore) {
                 rejeitarFinanceCommandUseCase.execute(new RejeitarFinanceCommandCommand(
                         command.workOrderId(),
