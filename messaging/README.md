@@ -51,3 +51,18 @@ curl -u admin:admin \
 > `RABBITMQ_EXCHANGE_INPUT`, `RABBITMQ_QUEUE_BUDGET`, `RABBITMQ_EXCHANGE_DEAD_LETTER`,
 > `RABBITMQ_QUEUE_BUDGET_DLQ`, `RABBITMQ_QUEUE_PAYMENT` e `RABBITMQ_QUEUE_PAYMENT_DLQ`
 > usadas pela aplicação.
+
+## Produção (CloudAMQP)
+
+O broker de `prod` é uma instância compartilhada do CloudAMQP, acessada por
+`amqps` na porta `5671`. Antes de importar `definitions.json`:
+
+1. Troque todos os `"vhost": "/"` pelo vhost real da instância (o plano
+   compartilhado não usa `/`).
+2. Remova as seções `vhosts`, `users`, `parameters` e `global_parameters` — o
+   plano compartilhado não permite gerenciar usuários nem vhosts.
+3. Importe via `POST https://<host>/api/definitions` ou crie os recursos um a
+   um na Management UI (`https://<host>/`).
+
+A aplicação **não** declara a topologia em runtime: se uma fila não existir, o
+listener não consome e fica em retry. Importe a topologia antes do deploy.

@@ -29,6 +29,8 @@ env:
   ENVIRONMENT: prod
   NAMESPACE: mecanicadm
   SSM_DB_PREFIX: /mecanicadm/prod/finance
+  # Credenciais do broker CloudAMQP, compartilhadas com o workorder.
+  SSM_RABBITMQ_PREFIX: /mecanicadm/prod/rabbitmq
   # O repositório da imagem do finance precisa ser próprio do serviço: o
   # ci-cd.yml também publica a tag móvel "prod-latest" e ela colidiria com a do
   # workorder se os dois usassem o mesmo repositório.
@@ -98,14 +100,22 @@ jobs:
       # O JWT é compartilhado com o workorder: é criado no state do
       # mecanicadm-workorder-api-v4 e aqui só é consumido.
       # SMTP, New Relic e Mercado Pago continuam em GitHub Secrets.
+      # As credenciais do RabbitMQ são do broker CloudAMQP e ficam no SSM.
       - name: Cria o Secret da aplicação
         env:
           JWT_SECRET_PARAM: /mecanicadm/prod/jwt_secret
         run: |
           set -euo pipefail
 
-          JWT_SECRET="$(aws ssm get-parameter --name "$JWT_SECRET_PARAM" \
-            --with-decryption --query Parameter.Value --output text)"
+          ssm() {
+            aws ssm get-parameter --name "$1" --with-decryption \
+              --query Parameter.Value --output text
+          }
+
+          JWT_SECRET="$(ssm "$JWT_SECRET_PARAM")"
+          RABBITMQ_USER="$(ssm "$SSM_RABBITMQ_PREFIX/user")"
+          RABBITMQ_PASSWORD="$(ssm "$SSM_RABBITMQ_PREFIX/password")"
+          RABBITMQ_VHOST="$(ssm "$SSM_RABBITMQ_PREFIX/vhost")"
 
           kubectl create secret generic mecanicadm-finance-secrets \
             --namespace ${{ env.NAMESPACE }} \
@@ -117,6 +127,9 @@ jobs:
             --from-literal=MERCADO_PAGO_PUBLIC_KEY="${{ secrets.MERCADO_PAGO_PUBLIC_KEY }}" \
             --from-literal=MERCADO_PAGO_CLIENT_ID="${{ secrets.MERCADO_PAGO_CLIENT_ID }}" \
             --from-literal=MERCADO_PAGO_CLIENT_SECRET="${{ secrets.MERCADO_PAGO_CLIENT_SECRET }}" \
+            --from-literal=RABBITMQ_USER="$RABBITMQ_USER" \
+            --from-literal=RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD" \
+            --from-literal=RABBITMQ_VHOST="$RABBITMQ_VHOST" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Aguarda o Kong ficar pronto
@@ -143,6 +156,13 @@ jobs:
         run: |
           kubectl -n ${{ env.NAMESPACE }} set image deployment/mecanicadm-finance \
             mecanicadm-finance=${{ env.IMAGE_REPO }}:${{ steps.image.outputs.TAG }}
+
+      # ConfigMap/Secret não reiniciam pods sozinhos e, quando a tag não muda,
+      # o `set image` também não gera rollout. Reinicia explicitamente para as
+      # variáveis RABBITMQ_* chegarem aos containers.
+      - name: Reinicia o Deployment para aplicar ConfigMap e Secrets
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout restart deployment/mecanicadm-finance
 
       - name: Verifica o status do rollout
         run: |
