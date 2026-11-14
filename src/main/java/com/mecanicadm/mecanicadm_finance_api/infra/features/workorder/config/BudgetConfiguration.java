@@ -14,7 +14,6 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.ManuallyAdju
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.ProcessBudgetDecisionByTokenUseCase;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.SendWorkOrderBudgetUseCase;
 import com.mecanicadm.mecanicadm_finance_api.infra.pdf.PdfGenerator;
-import org.springframework.beans.factory.annotation.Value;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.port.BudgetExpiryGateway;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.ExpireWorkOrderBudgetsUseCase;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -41,10 +40,9 @@ public class BudgetConfiguration {
     @Bean
     public SendWorkOrderBudgetUseCase sendWorkOrderBudgetUseCase(BudgetSendTransactionService transactionService,
                                                                  EmailService emailService,
-                                                                 GetPrintableBudgetUseCase getPrintableBudgetUseCase,
-                                                                 @Value("${app.budget.decision-path:/budget-decision/}") String budgetDecisionPath) {
+                                                                 GetPrintableBudgetUseCase getPrintableBudgetUseCase) {
         return new SendWorkOrderBudgetUseCase(transactionService, emailService,
-                getPrintableBudgetUseCase, budgetDecisionPath);
+                getPrintableBudgetUseCase);
     }
 
     @Bean

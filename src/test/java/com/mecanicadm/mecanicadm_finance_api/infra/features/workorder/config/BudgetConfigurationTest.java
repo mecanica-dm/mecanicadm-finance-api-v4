@@ -91,7 +91,7 @@ class BudgetConfigurationTest {
         GetPrintableBudgetUseCase printable = configuration.getPrintableBudgetUseCase(budgetGateway, pdfGenerator);
 
         assertNotNull(configuration.sendWorkOrderBudgetUseCase(
-                budgetSendTransactionService, emailService, printable, "/budget-decision/"));
+                budgetSendTransactionService, emailService, printable));
     }
 
     @Test
