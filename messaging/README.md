@@ -57,32 +57,33 @@ curl -u admin:admin \
 O broker de `prod` é uma instância compartilhada do CloudAMQP, acessada por
 `amqps` na porta `5671`.
 
-A importação é **automática**: o `.github/workflows/app-deploy.yml` roda o passo
-`Importa a topologia do RabbitMQ (CloudAMQP)` a cada deploy (e sempre que
+Nesse plano o `POST /api/definitions` **não funciona**: o endpoint exige a tag
+`administrator` no RabbitMQ 4.x, e o usuário da instância tem apenas
+`management,policymaker` (o CloudAMQP documenta a importação de definitions
+como recurso exclusivo de instâncias dedicadas). Por isso a topologia é aplicada
+**recurso por recurso** (`PUT /api/exchanges`, `PUT /api/queues`,
+`POST /api/bindings`), que usam só as permissões normais de vhost.
+
+A aplicação é **automática**: o `.github/workflows/app-deploy.yml` roda o passo
+`Aplica a topologia do RabbitMQ (CloudAMQP)` a cada deploy (e sempre que
 `messaging/**` muda). Ele lê o host do ConfigMap `mecanicadm-finance-config` e as
-credenciais do SSM (`/mecanicadm/prod/rabbitmq/*`), e antes do `POST` ajusta o
-JSON para o plano compartilhado:
+credenciais do SSM (`/mecanicadm/prod/rabbitmq/*`) e chama
+`devops/scripts/rabbitmq-apply-topology.sh`.
 
-1. Troca todos os `"vhost": "/"` pelo vhost real da instância (o plano
-   compartilhado não usa `/`).
-2. Remove as seções `vhosts`, `users`, `parameters`, `global_parameters` e
-   `policies` — o plano compartilhado não permite gerenciá-los.
-
-A importação é idempotente e não remove recursos de outros serviços que
-compartilham o vhost (ex.: as filas do workorder). O import manual abaixo só é
-necessário em uma emergência (ex.: rodar fora da pipeline).
+Para rodar manualmente (emergência, fora da pipeline):
 
 ```bash
-jq --arg vhost "$RABBITMQ_VHOST" \
-  'del(.vhosts, .users, .parameters, .global_parameters, .policies)
-   | (.exchanges[]?.vhost, .queues[]?.vhost, .bindings[]?.vhost) = $vhost' \
-  messaging/definitions.json > /tmp/definitions.json
-
-curl -u "$RABBITMQ_USER:$RABBITMQ_PASSWORD" \
-  -H "Content-Type: application/json" \
-  -X POST --data @/tmp/definitions.json \
-  "https://$RABBITMQ_HOST/api/definitions"
+RABBITMQ_HOST="$RABBITMQ_HOST" \
+RABBITMQ_USER="$RABBITMQ_USER" \
+RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD" \
+RABBITMQ_VHOST="$RABBITMQ_VHOST" \
+  devops/scripts/rabbitmq-apply-topology.sh messaging/definitions.json
 ```
+
+O script é idempotente (rodar de novo não duplica exchanges, filas nem
+bindings), falha em caso de drift (mesma fila com `x-dead-letter-*` diferente) e
+não remove recursos de outros serviços no mesmo vhost — as filas do workorder
+continuam intactas.
 
 A aplicação **não** declara a topologia em runtime: se uma fila não existir, o
 listener não consome e fica em retry.

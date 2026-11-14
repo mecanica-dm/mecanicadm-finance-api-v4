@@ -5,7 +5,7 @@ on:
     branches: [ main ]
     paths:
       - "devops/k8s/**"
-      # Mudanças na topologia do broker também passam pelo deploy, que importa
+      # Mudanças na topologia do broker também passam pelo deploy, que aplica
       # o definitions.json no CloudAMQP.
       - "messaging/**"
       - ".github/workflows/app-deploy.yml"
@@ -173,11 +173,16 @@ jobs:
             -f devops/k8s/ingress.yaml
 
       # A aplicação não declara a topologia em runtime: sem as filas "budget" e
-      # "payment" os listeners ficam em retry. Importamos o definitions.json no
-      # vhost do CloudAMQP a cada deploy. A importação é idempotente para os
-      # mesmos recursos (não duplica exchanges, filas nem bindings) e também não
-      # remove os recursos do workorder, que compartilha o mesmo vhost.
-      - name: Importa a topologia do RabbitMQ (CloudAMQP)
+      # "payment" os listeners ficam em retry. Aplicamos o definitions.json no
+      # vhost do CloudAMQP a cada deploy.
+      #
+      # Não usamos `POST /api/definitions`: o import exige a tag "administrator"
+      # e o plano compartilhado do CloudAMQP só entrega "management"/
+      # "policymaker" (definitions é documentado como exclusivo de instâncias
+      # dedicadas). O script aplica recurso por recurso, que usa apenas as
+      # permissões normais de vhost, é idempotente e não remove os recursos do
+      # workorder, que compartilha o mesmo vhost.
+      - name: Aplica a topologia do RabbitMQ (CloudAMQP)
         run: |
           set -euo pipefail
 
@@ -196,27 +201,9 @@ jobs:
           RABBITMQ_USER="$(ssm "$SSM_RABBITMQ_PREFIX/user")"
           RABBITMQ_PASSWORD="$(ssm "$SSM_RABBITMQ_PREFIX/password")"
           RABBITMQ_VHOST="$(ssm "$SSM_RABBITMQ_PREFIX/vhost")"
+          export RABBITMQ_HOST RABBITMQ_USER RABBITMQ_PASSWORD RABBITMQ_VHOST
 
-          # O definitions.json usa "vhost": "/" (ambiente local); no CloudAMQP
-          # o vhost é o da instância (planos compartilhados não usam "/").
-          # Removemos também vhosts/users/parameters/global_parameters/policies:
-          # o plano compartilhado não permite gerenciá-los e o import falharia.
-          #
-          # Geramos um arquivo (em vez de pipe no stdin) porque o --retry do curl
-          # não consegue rebobinar a entrada padrão para reenviar o corpo.
-          DEFINITIONS="$(mktemp)"
-          jq --arg vhost "$RABBITMQ_VHOST" \
-            'del(.vhosts, .users, .parameters, .global_parameters, .policies)
-             | (.exchanges[]?.vhost, .queues[]?.vhost, .bindings[]?.vhost) = $vhost' \
-            messaging/definitions.json > "$DEFINITIONS"
-
-          curl --fail-with-body --silent --show-error \
-            --retry 3 --retry-delay 5 --retry-connrefused --max-time 60 \
-            --user "${RABBITMQ_USER}:${RABBITMQ_PASSWORD}" \
-            -H "content-type: application/json" \
-            -X POST "https://${RABBITMQ_HOST}/api/definitions" \
-            --data "@${DEFINITIONS}"
-          echo "Topologia importada no vhost ${RABBITMQ_VHOST} de ${RABBITMQ_HOST}."
+          bash devops/scripts/rabbitmq-apply-topology.sh messaging/definitions.json
 
       - name: Define a tag da imagem a implantar
         id: image
