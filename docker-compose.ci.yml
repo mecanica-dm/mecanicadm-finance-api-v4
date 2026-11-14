@@ -1,4 +1,13 @@
 services:
+  # A aplicacao NAO declara a topologia do RabbitMQ em runtime (ver
+  # messaging/README.md): ela espera que as filas/exchanges de
+  # messaging/definitions.json ja existam. No CI o broker sobe vazio, entao os
+  # @RabbitListener fazem queue.declare passivo, recebem
+  # "not_found: no queue 'payment' in vhost '/'" e, como
+  # missingQueuesFatal=true por padrao, o contexto Spring nao sobe.
+  #
+  # Este servico importa as definicoes e a API so inicia depois que ele termina
+  # com sucesso (service_completed_successfully).
   rabbitmq:
     profiles: !reset []
     ports: !reset []

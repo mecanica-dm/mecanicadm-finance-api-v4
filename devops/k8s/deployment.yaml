@@ -1,0 +1,90 @@
+# Deployment da Finance API.
+#
+# A imagem ja embute o agente do New Relic (/app/newrelic.jar) e o ENTRYPOINT do
+# Dockerfile carrega o -javaagent. Por isso nao existe initContainer baixando o
+# agente nem JAVA_OPTS aqui.
+#
+# Nao fixamos runAsUser nem readOnlyRootFilesystem como no workorder: o agente
+# grava newrelic_agent.log em /app e a imagem roda como "appuser" (nao-root),
+# entao o filesystem precisa ser gravavel.
+#
+# Tambem nao usamos runAsNonRoot: a imagem declara USER appuser (nome, nao UID),
+# e o kubelet recusa o container nesse caso ("image has non-numeric user ...
+# cannot verify user is non-root"). Fixar runAsUser: 1000, como no workorder,
+# faria o processo perder a escrita em /app, que e "chown appuser". O container
+# ja roda como nao-root por causa do USER do Dockerfile.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mecanicadm-finance
+  namespace: mecanicadm
+  labels:
+    app.kubernetes.io/name: mecanicadm-finance
+    app.kubernetes.io/instance: mecanicadm-finance
+    app.kubernetes.io/part-of: mecanicadm
+    app.kubernetes.io/component: finance-api
+spec:
+  # 1 replica por padrao: o cluster tem 2 nodes t3.small e o HPA escala ate 2.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mecanicadm-finance
+      app.kubernetes.io/instance: mecanicadm-finance
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mecanicadm-finance
+        app.kubernetes.io/instance: mecanicadm-finance
+        app.kubernetes.io/part-of: mecanicadm
+        app.kubernetes.io/component: finance-api
+    spec:
+      serviceAccountName: mecanicadm-finance
+      containers:
+        - name: mecanicadm-finance
+          image: guilhermemuchon/mecanica-dm-finance-api:prod-latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: mecanicadm-finance-config
+            - secretRef:
+                name: mecanicadm-finance-db-secrets
+            - secretRef:
+                name: mecanicadm-finance-secrets
+          resources:
+            # Requests baixos porque o cluster tem apenas 2 nodes t3.small
+            # compartilhados com o workorder. O pod e pequeno: sobe com ~512Mi.
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1000m"
+              memory: 1024Mi
+          startupProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: http
+            failureThreshold: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/actuator/health/liveness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
