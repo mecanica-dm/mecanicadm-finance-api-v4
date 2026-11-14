@@ -28,7 +28,7 @@ Bindings da `finance-input`, usada apenas para eventos **consumidos** (header `e
 Pela interface de gerenciamento (`http://localhost:15672`):
 
 1. Acesse **Admin → Import definitions**.
-2. Selecione `docker/rabbitmq/definitions.json`.
+2. Selecione `messaging/definitions.json`.
 3. Clique em **Import**.
 
 Via CLI:
@@ -43,7 +43,7 @@ Ou via HTTP:
 curl -u admin:admin \
   -H "Content-Type: application/json" \
   -X POST \
-  --data @docker/rabbitmq/definitions.json \
+  --data @messaging/definitions.json \
   http://localhost:15672/api/definitions
 ```
 
@@ -55,14 +55,34 @@ curl -u admin:admin \
 ## Produção (CloudAMQP)
 
 O broker de `prod` é uma instância compartilhada do CloudAMQP, acessada por
-`amqps` na porta `5671`. Antes de importar `definitions.json`:
+`amqps` na porta `5671`.
 
-1. Troque todos os `"vhost": "/"` pelo vhost real da instância (o plano
+A importação é **automática**: o `.github/workflows/app-deploy.yml` roda o passo
+`Importa a topologia do RabbitMQ (CloudAMQP)` a cada deploy (e sempre que
+`messaging/**` muda). Ele lê o host do ConfigMap `mecanicadm-finance-config` e as
+credenciais do SSM (`/mecanicadm/prod/rabbitmq/*`), e antes do `POST` ajusta o
+JSON para o plano compartilhado:
+
+1. Troca todos os `"vhost": "/"` pelo vhost real da instância (o plano
    compartilhado não usa `/`).
-2. Remova as seções `vhosts`, `users`, `parameters` e `global_parameters` — o
-   plano compartilhado não permite gerenciar usuários nem vhosts.
-3. Importe via `POST https://<host>/api/definitions` ou crie os recursos um a
-   um na Management UI (`https://<host>/`).
+2. Remove as seções `vhosts`, `users`, `parameters`, `global_parameters` e
+   `policies` — o plano compartilhado não permite gerenciá-los.
+
+A importação é idempotente e não remove recursos de outros serviços que
+compartilham o vhost (ex.: as filas do workorder). O import manual abaixo só é
+necessário em uma emergência (ex.: rodar fora da pipeline).
+
+```bash
+jq --arg vhost "$RABBITMQ_VHOST" \
+  'del(.vhosts, .users, .parameters, .global_parameters, .policies)
+   | (.exchanges[]?.vhost, .queues[]?.vhost, .bindings[]?.vhost) = $vhost' \
+  messaging/definitions.json > /tmp/definitions.json
+
+curl -u "$RABBITMQ_USER:$RABBITMQ_PASSWORD" \
+  -H "Content-Type: application/json" \
+  -X POST --data @/tmp/definitions.json \
+  "https://$RABBITMQ_HOST/api/definitions"
+```
 
 A aplicação **não** declara a topologia em runtime: se uma fila não existir, o
-listener não consome e fica em retry. Importe a topologia antes do deploy.
+listener não consome e fica em retry.

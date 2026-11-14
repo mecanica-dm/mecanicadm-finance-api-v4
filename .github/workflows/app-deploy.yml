@@ -5,6 +5,9 @@ on:
     branches: [ main ]
     paths:
       - "devops/k8s/**"
+      # Mudanças na topologia do broker também passam pelo deploy, que importa
+      # o definitions.json no CloudAMQP.
+      - "messaging/**"
       - ".github/workflows/app-deploy.yml"
   workflow_dispatch:
     inputs:
@@ -168,6 +171,52 @@ jobs:
             -f devops/k8s/deployment.yaml \
             -f devops/k8s/hpa.yaml \
             -f devops/k8s/ingress.yaml
+
+      # A aplicação não declara a topologia em runtime: sem as filas "budget" e
+      # "payment" os listeners ficam em retry. Importamos o definitions.json no
+      # vhost do CloudAMQP a cada deploy. A importação é idempotente para os
+      # mesmos recursos (não duplica exchanges, filas nem bindings) e também não
+      # remove os recursos do workorder, que compartilha o mesmo vhost.
+      - name: Importa a topologia do RabbitMQ (CloudAMQP)
+        run: |
+          set -euo pipefail
+
+          ssm() {
+            aws ssm get-parameter --name "$1" --with-decryption \
+              --query Parameter.Value --output text
+          }
+
+          # O host vem do ConfigMap aplicado no passo anterior (fonte única).
+          RABBITMQ_HOST="$(kubectl -n ${{ env.NAMESPACE }} get configmap mecanicadm-finance-config \
+            -o jsonpath='{.data.RABBITMQ_HOST}')"
+          if [ -z "$RABBITMQ_HOST" ]; then
+            echo "::error::RABBITMQ_HOST não encontrado no ConfigMap mecanicadm-finance-config."
+            exit 1
+          fi
+          RABBITMQ_USER="$(ssm "$SSM_RABBITMQ_PREFIX/user")"
+          RABBITMQ_PASSWORD="$(ssm "$SSM_RABBITMQ_PREFIX/password")"
+          RABBITMQ_VHOST="$(ssm "$SSM_RABBITMQ_PREFIX/vhost")"
+
+          # O definitions.json usa "vhost": "/" (ambiente local); no CloudAMQP
+          # o vhost é o da instância (planos compartilhados não usam "/").
+          # Removemos também vhosts/users/parameters/global_parameters/policies:
+          # o plano compartilhado não permite gerenciá-los e o import falharia.
+          #
+          # Geramos um arquivo (em vez de pipe no stdin) porque o --retry do curl
+          # não consegue rebobinar a entrada padrão para reenviar o corpo.
+          DEFINITIONS="$(mktemp)"
+          jq --arg vhost "$RABBITMQ_VHOST" \
+            'del(.vhosts, .users, .parameters, .global_parameters, .policies)
+             | (.exchanges[]?.vhost, .queues[]?.vhost, .bindings[]?.vhost) = $vhost' \
+            messaging/definitions.json > "$DEFINITIONS"
+
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-connrefused --max-time 60 \
+            --user "${RABBITMQ_USER}:${RABBITMQ_PASSWORD}" \
+            -H "content-type: application/json" \
+            -X POST "https://${RABBITMQ_HOST}/api/definitions" \
+            --data "@${DEFINITIONS}"
+          echo "Topologia importada no vhost ${RABBITMQ_VHOST} de ${RABBITMQ_HOST}."
 
       - name: Define a tag da imagem a implantar
         id: image
