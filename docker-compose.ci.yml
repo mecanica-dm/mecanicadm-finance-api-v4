@@ -1,12 +1,12 @@
 services:
-  # A aplicacao NAO declara a topologia do RabbitMQ em runtime (ver
-  # messaging/README.md): ela espera que as filas/exchanges de
-  # messaging/definitions.json ja existam. No CI o broker sobe vazio, entao os
-  # @RabbitListener fazem queue.declare passivo, recebem
-  # "not_found: no queue 'payment' in vhost '/'" e, como
-  # missingQueuesFatal=true por padrao, o contexto Spring nao sobe.
+  # A aplicacao NAO declara a topologia do RabbitMQ em runtime: ela espera que as
+  # filas/exchanges de messaging/definitions.json ja existam. No CI o broker sobe
+  # vazio, entao os @RabbitListener fazem queue.declare passivo, recebem
+  # "not_found: no queue 'payment' in vhost '/'" e, como missingQueuesFatal=true
+  # por padrao, o contexto Spring nao sobe.
   #
-  # Este servico importa as definicoes e a API so inicia depois que ele termina
+  # O broker sobe sempre (sem perfil e sem publicar portas no host), o
+  # rabbitmq-init importa as definicoes e a API so inicia depois que ele termina
   # com sucesso (service_completed_successfully).
   rabbitmq:
     profiles: !reset []
@@ -20,27 +20,44 @@ services:
 
   rabbitmq-init:
     profiles: !reset []
-    image: curlimages/curl:8.10.1
+    image: curlimages/curl:8.12.1
+    restart: "no"
     depends_on:
       rabbitmq:
         condition: service_healthy
     volumes:
       - ./messaging/definitions.json:/definitions.json:ro
-    entrypoint: [ "sh", "-c" ]
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - >
-        curl -sf --retry 10 --retry-delay 3 --retry-connrefused
-        -u "guest:guest"
-        -H "content-type: application/json"
-        -X POST http://rabbitmq:15672/api/definitions
-        --data @/definitions.json
-    restart: "no"
+      - |
+        set -e
+
+        curl -fsS --retry 30 --retry-delay 2 --retry-connrefused \
+          -u "guest:guest" \
+          http://rabbitmq:15672/api/overview > /dev/null
+
+        curl -fsS --retry 5 --retry-all-errors --retry-delay 2 \
+          -u "guest:guest" \
+          -H "Content-Type: application/json" \
+          -X POST --data-binary @/definitions.json \
+          http://rabbitmq:15672/api/definitions
+
+        echo "Topologia do RabbitMQ importada (budget, budget.dlq, payment, payment.dlq)"
 
   api:
     image: mecanicadm-finance-api-v4:ci
     pull_policy: never
+    # O workflow consulta a API e roda o ZAP em localhost:8080.
+    ports: !override
+      - "8080:8080"
     environment:
       - RABBITMQ_HOST=rabbitmq
     depends_on:
       rabbitmq-init:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
