@@ -14,9 +14,10 @@ metadata:
     app.kubernetes.io/part-of: mecanicadm
     app.kubernetes.io/component: finance-api
 data:
-  # Link enviado por e-mail no orcamento. O context-path da aplicacao e /api,
-  # por isso a base ja termina em /api (o path /budget-decision/ e relativo).
-  BUDGET_BASE_URL: "https://finance.mecanicadm.com.br/api"
+  # Link enviado por e-mail no orcamento (lido pela propriedade budget.base-url).
+  # O context-path da aplicacao e /api, por isso a base ja termina em /api
+  # (o path /budget-decision/ e relativo).
+  FINANCE_PUBLIC_URL: "https://finance.mecanicadm.com.br/api"
 
   MAIL_HOST: "smtp.gmail.com"
   MAIL_PORT: "587"
