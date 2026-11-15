@@ -41,7 +41,7 @@ class ManuallyAdjustWorkOrderBudgetUseCaseTest {
     void shouldAdjustBudgetSuccessfully() {
         UUID workOrderId = UUID.randomUUID();
         WorkOrderBudget budget = WorkOrderBudget.restore(
-                workOrderId, new BigDecimal("100.00"), WorkOrderBudgetStatus.APPROVED, "ok");
+                workOrderId, new BigDecimal("100.00"), WorkOrderBudgetStatus.CHANGES_REQUESTED, "ok");
         when(gateway.findById(workOrderId)).thenReturn(Optional.of(budget));
 
         useCase.execute(new ManuallyAdjustWorkOrderBudgetCommand(workOrderId, new BigDecimal("350.00")));

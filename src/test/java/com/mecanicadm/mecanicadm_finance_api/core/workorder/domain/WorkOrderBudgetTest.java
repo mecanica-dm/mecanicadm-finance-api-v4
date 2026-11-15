@@ -183,4 +183,30 @@ class WorkOrderBudgetTest {
         assertThrows(BudgetExceptions.BudgetTotalPriceInvalid.class,
                 () -> budget.updateTotalPrice(BigDecimal.ZERO));
     }
+
+    @Test
+    @DisplayName("Orcamento cancelado, aprovado ou rejeitado nao aceita recalculo nem envio")
+    void shouldNotAcceptActionsInFinalStatuses() {
+        BigDecimal newTotal = new BigDecimal("150.00");
+        for (WorkOrderBudgetStatus status : new WorkOrderBudgetStatus[]{
+                WorkOrderBudgetStatus.CANCELED, WorkOrderBudgetStatus.APPROVED, WorkOrderBudgetStatus.REJECTED}) {
+            WorkOrderBudget budget = WorkOrderBudget.restore(UUID.randomUUID(), new BigDecimal("100.00"), status, null);
+
+            assertFalse(budget.isEditable());
+            assertThrows(BudgetExceptions.BudgetNotEditable.class, () -> budget.updateTotalPrice(newTotal));
+            assertThrows(BudgetExceptions.BudgetNotEditable.class, budget::send);
+            assertEquals(status, budget.getStatus());
+        }
+    }
+
+    @Test
+    @DisplayName("Orcamento com alteracoes solicitadas pode ser recalculado e volta para PENDING")
+    void shouldRecalculateWhenChangesRequested() {
+        WorkOrderBudget budget = WorkOrderBudget.restore(UUID.randomUUID(), new BigDecimal("100.00"),
+                WorkOrderBudgetStatus.CHANGES_REQUESTED, "trocar so o oleo");
+
+        budget.updateTotalPrice(new BigDecimal("80.00"));
+
+        assertEquals(WorkOrderBudgetStatus.PENDING, budget.getStatus());
+    }
 }

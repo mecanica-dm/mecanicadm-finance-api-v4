@@ -5,6 +5,11 @@ import java.util.UUID;
 public record RejeitarFinanceCommandCommand(
         UUID workOrderId,
         String eventType,
-        RuntimeException exception
+        RuntimeException exception,
+        UUID inboundMessageId
 ) {
+
+    public RejeitarFinanceCommandCommand(UUID workOrderId, String eventType, RuntimeException exception) {
+        this(workOrderId, eventType, exception, null);
+    }
 }

@@ -1,8 +1,11 @@
 package com.mecanicadm.mecanicadm_finance_api.infra.features.payment.messaging;
 
+import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.CancelPaymentIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.GeneratePaymentIntegrationCommand;
+import com.mecanicadm.mecanicadm_finance_api.core.payment.domain.event.RefundPaymentIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.InboxEntry;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.ProcessInboundMessageUseCase;
+import com.mecanicadm.mecanicadm_finance_api.infra.messaging.inbox.InboundMessageContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +22,13 @@ import java.util.UUID;
 @Component
 public class PaymentQueueListener {
 
+    private static final String MESSAGE_ID_HEADER = "message-id";
     private static final Logger logger = LoggerFactory.getLogger(PaymentQueueListener.class);
 
     private final Jackson2JsonMessageConverter messageConverter;
     private final GeneratePaymentIntegrationListener generatePaymentListener;
+    private final CancelPaymentIntegrationListener cancelPaymentListener;
+    private final RefundPaymentIntegrationListener refundPaymentListener;
     private final ProcessInboundMessageUseCase processInboundMessageUseCase;
     private final MeterRegistry meterRegistry;
 
@@ -31,12 +37,16 @@ public class PaymentQueueListener {
 
     public PaymentQueueListener(Jackson2JsonMessageConverter messageConverter,
                                 GeneratePaymentIntegrationListener generatePaymentListener,
+                                CancelPaymentIntegrationListener cancelPaymentListener,
+                                RefundPaymentIntegrationListener refundPaymentListener,
                                 ProcessInboundMessageUseCase processInboundMessageUseCase,
                                 MeterRegistry meterRegistry,
                                 @Value("${app.rabbitmq.queues.payment:payment}") String consumer,
                                 @Value("${app.rabbitmq.headers.event-type:event-type}") String eventTypeHeader) {
         this.messageConverter = messageConverter;
         this.generatePaymentListener = generatePaymentListener;
+        this.cancelPaymentListener = cancelPaymentListener;
+        this.refundPaymentListener = refundPaymentListener;
         this.processInboundMessageUseCase = processInboundMessageUseCase;
         this.meterRegistry = meterRegistry;
         this.consumer = consumer;
@@ -65,6 +75,7 @@ public class PaymentQueueListener {
         logger.info("Recebida mensagem na fila {} (eventType={}, messageId={})",
                 consumer, eventType, messageId);
 
+        InboundMessageContext.set(messageId);
         try {
             boolean processed = processInboundMessageUseCase.execute(
                     entry, () -> dispatch(message, eventType));
@@ -81,21 +92,32 @@ public class PaymentQueueListener {
             logger.error("Erro ao processar mensagem (messageId={}, eventType={}, consumer={}): {}",
                     messageId, eventType, consumer, e.getMessage(), e);
             throw e;
+        } finally {
+            InboundMessageContext.clear();
         }
     }
 
     private void dispatch(Message message, String eventType) {
         if (GeneratePaymentIntegrationCommand.class.getSimpleName().equals(eventType)) {
             generatePaymentListener.onMessage(convert(message, GeneratePaymentIntegrationCommand.class));
+        } else if (CancelPaymentIntegrationCommand.class.getSimpleName().equals(eventType)) {
+            cancelPaymentListener.onMessage(convert(message, CancelPaymentIntegrationCommand.class));
+        } else if (RefundPaymentIntegrationCommand.class.getSimpleName().equals(eventType)) {
+            refundPaymentListener.onMessage(convert(message, RefundPaymentIntegrationCommand.class));
         }
     }
 
     private boolean isSupported(String eventType) {
-        return GeneratePaymentIntegrationCommand.class.getSimpleName().equals(eventType);
+        return GeneratePaymentIntegrationCommand.class.getSimpleName().equals(eventType)
+                || CancelPaymentIntegrationCommand.class.getSimpleName().equals(eventType)
+                || RefundPaymentIntegrationCommand.class.getSimpleName().equals(eventType);
     }
 
     private UUID resolveMessageId(Message message, String eventType) {
-        String headerId = message.getMessageProperties().getMessageId();
+        String headerId = resolveHeader(message, MESSAGE_ID_HEADER);
+        if (headerId == null || headerId.isBlank()) {
+            headerId = message.getMessageProperties().getMessageId();
+        }
 
         if (headerId != null && !headerId.isBlank()) {
             try {

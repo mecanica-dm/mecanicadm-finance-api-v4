@@ -12,7 +12,6 @@ import com.mecanicadm.mecanicadm_finance_api.core.workorder.usecase.query.GetPri
 import com.mecanicadm.mecanicadm_finance_api.shared.usecase.VoidUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Base64;
 import java.util.UUID;
@@ -21,19 +20,19 @@ public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudg
 
     private static final Logger logger = LoggerFactory.getLogger(SendWorkOrderBudgetUseCase.class);
 
+    @SuppressWarnings("java:S1075")
+    private static final String BUDGET_DECISION_PATH = "/budget-decision/";
+
     private final BudgetSendTransactionService transactionService;
     private final EmailService emailService;
     private final GetPrintableBudgetUseCase getPrintableBudgetUseCase;
-    private final String budgetDecisionPath;
 
     public SendWorkOrderBudgetUseCase(BudgetSendTransactionService transactionService,
                                       EmailService emailService,
-                                      GetPrintableBudgetUseCase getPrintableBudgetUseCase,
-                                      @Value("${app.budget.decision-path:/budget-decision/}") String budgetDecisionPath) {
+                                      GetPrintableBudgetUseCase getPrintableBudgetUseCase) {
         this.transactionService = transactionService;
         this.emailService = emailService;
         this.getPrintableBudgetUseCase = getPrintableBudgetUseCase;
-        this.budgetDecisionPath = budgetDecisionPath;
     }
 
     public void execute(SendWorkOrderBudgetCommand cmd) {
@@ -74,9 +73,9 @@ public class SendWorkOrderBudgetUseCase implements VoidUseCase<SendWorkOrderBudg
     }
 
     private String buildEmailHtml(WorkOrderBudget budget, String token, String baseUrl) {
-        String approveUrl = baseUrl + budgetDecisionPath + token + "/form?action=APPROVED";
-        String rejectUrl = baseUrl + budgetDecisionPath + token + "/form?action=REJECTED";
-        String changesUrl = baseUrl + budgetDecisionPath + token + "/form?action=CHANGES_REQUESTED";
+        String approveUrl = baseUrl + BUDGET_DECISION_PATH + token + "/form?action=APPROVED";
+        String rejectUrl = baseUrl + BUDGET_DECISION_PATH + token + "/form?action=REJECTED";
+        String changesUrl = baseUrl + BUDGET_DECISION_PATH + token + "/form?action=CHANGES_REQUESTED";
 
         WorkOrderBudgetInfo info = budget.getInfo();
         WorkOrderBudgetVehicle vehicle = info == null ? null : info.getVehicle();

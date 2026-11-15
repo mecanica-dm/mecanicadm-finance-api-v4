@@ -77,7 +77,20 @@ public class WorkOrderBudget {
         return new WorkOrderBudget(workOrderId, totalPrice, status, observation, info);
     }
 
+    public boolean isEditable() {
+        return this.status == WorkOrderBudgetStatus.PENDING
+                || this.status == WorkOrderBudgetStatus.WAITING_DECISION
+                || this.status == WorkOrderBudgetStatus.CHANGES_REQUESTED;
+    }
+
+    public void ensureEditable() {
+        if (!isEditable()) {
+            throw new BudgetExceptions.BudgetNotEditable(this.status.name());
+        }
+    }
+
     public void updateTotalPrice(BigDecimal totalPrice) {
+        ensureEditable();
         this.totalPrice = requireNonNull(totalPrice);
         this.status = WorkOrderBudgetStatus.PENDING;
         this.observation = null;
@@ -85,6 +98,7 @@ public class WorkOrderBudget {
     }
 
     public void send() {
+        ensureEditable();
         this.status = WorkOrderBudgetStatus.WAITING_DECISION;
     }
 
@@ -136,11 +150,11 @@ public class WorkOrderBudget {
     }
 
     public Set<WorkOrderBudgetItem> getItems() {
-        return info.getItems();
+        return info == null ? Set.of() : info.getItems();
     }
 
     public String getDescription() {
-        return info.getDescription();
+        return info == null ? null : info.getDescription();
     }
 
     public WorkOrderBudgetInfo getInfo() {

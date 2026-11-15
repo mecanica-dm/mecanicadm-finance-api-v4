@@ -47,7 +47,7 @@ class SendWorkOrderBudgetUseCaseTest {
     @BeforeEach
     void setUp() {
         useCase = new SendWorkOrderBudgetUseCase(
-                transactionService, emailService, getPrintableBudgetUseCase, "/budget-decision/");
+                transactionService, emailService, getPrintableBudgetUseCase);
     }
 
     @Test

@@ -37,6 +37,12 @@ public class BudgetExceptions {
         }
     }
 
+    public static class BudgetNotEditable extends DomainExceptionCore {
+        public BudgetNotEditable(String status) {
+            super("budget.not.editable", 409, status);
+        }
+    }
+
     public static class BudgetNotWaitingDecision extends DomainExceptionCore {
         public BudgetNotWaitingDecision() {
             super("budget.not.waiting.decision", 400);
