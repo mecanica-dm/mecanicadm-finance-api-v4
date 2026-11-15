@@ -1,43 +1,71 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: mecanicadm-db
+    container_name: mecanicadm-finance-api-v4-db
     ports:
-      - "5432:5432"
+      - "${FINANCE_DB_PORT:-5433}:5432"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-admin}
+      - POSTGRES_DB=${POSTGRES_DB:-mecanicadmfinancedb}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-mecanicadmfinancedb}" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: mecanicadm-finance-api-v4-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+
   rabbitmq:
-    image: rabbitmq:4.3.6-management
-    container_name: mecanicadm-rabbitmq
+    profiles: [ "broker" ]
+    container_name: mecanicadm-finance-api-v4-rabbitmq
+    image: rabbitmq:3.13-management-alpine
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - RABBITMQ_DEFAULT_USER=${BROKER_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${BROKER_PASSWORD:-guest}
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  rabbitmq-init:
+    profiles: [ "broker" ]
+    container_name: mecanicadm-finance-api-v4-rabbitmq-init
+    image: curlimages/curl:8.10.1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./messaging/definitions.json:/definitions.json:ro
+    entrypoint: [ "sh", "-c" ]
+    command:
+      - >
+        curl -sf --retry 10 --retry-delay 3 --retry-connrefused
+        -u "${BROKER_USER:-guest}:${BROKER_PASSWORD:-guest}"
+        -H "content-type: application/json"
+        -X POST http://rabbitmq:15672/api/definitions
+        --data @/definitions.json
+        && echo "Topologia do finance aplicada"
+    restart: "no"
+
   api:
     build: .
     container_name: mecanicadm-finance-api-v4
     ports:
-      - "8080:8080"
+      - "${FINANCE_PORT:-8082}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-default}
       - DB_HOST=db
@@ -46,11 +74,18 @@ services:
       - DB_USER=${POSTGRES_USER:-admin}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-admin}
       - JWT_SECRET=${JWT_SECRET:-development}
-      - BUDGET_BASE_URL=${BUDGET_BASE_URL:-http://localhost:8080/api}
+      - FINANCE_PUBLIC_URL=${FINANCE_PUBLIC_URL:-http://localhost:8082/api}
+      - BUDGET_EXPIRATION_ENABLED=${BUDGET_EXPIRATION_ENABLED:-true}
+      - BUDGET_EXPIRATION_INTERVAL_MS=${BUDGET_EXPIRATION_INTERVAL_MS:-60000}
+      - BUDGET_EXPIRATION_BATCH_SIZE=${BUDGET_EXPIRATION_BATCH_SIZE:-50}
       - MERCADO_PAGO_ACCESS_TOKEN=${MERCADO_PAGO_ACCESS_TOKEN:-}
       - MERCADO_PAGO_PUBLIC_KEY=${MERCADO_PAGO_PUBLIC_KEY:-}
       - MERCADO_PAGO_CLIENT_ID=${MERCADO_PAGO_CLIENT_ID:-}
       - MERCADO_PAGO_CLIENT_SECRET=${MERCADO_PAGO_CLIENT_SECRET:-}
+      - PAYMENT_VERIFICATION_ENABLED=${PAYMENT_VERIFICATION_ENABLED:-true}
+      - PAYMENT_VERIFICATION_INTERVAL_MS=${PAYMENT_VERIFICATION_INTERVAL_MS:-60000}
+      - PAYMENT_VERIFICATION_MIN_AGE_SECONDS=${PAYMENT_VERIFICATION_MIN_AGE_SECONDS:-60}
+      - PAYMENT_VERIFICATION_BATCH_SIZE=${PAYMENT_VERIFICATION_BATCH_SIZE:-20}
       - MERCADO_PAGO_DEFAULT_CARD_NUMBER=${MERCADO_PAGO_DEFAULT_CARD_NUMBER:-4235647728025682}
       - MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_MONTH=${MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_MONTH:-11}
       - MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_YEAR=${MERCADO_PAGO_DEFAULT_CARD_EXPIRATION_YEAR:-2030}
@@ -58,14 +93,16 @@ services:
       - MERCADO_PAGO_DEFAULT_CARD_HOLDER_NAME=${MERCADO_PAGO_DEFAULT_CARD_HOLDER_NAME:-APRO}
       - MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_TYPE=${MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_TYPE:-CPF}
       - MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_NUMBER=${MERCADO_PAGO_DEFAULT_CARD_IDENTIFICATION_NUMBER:-19119119100}
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USERNAME=${MAIL_USERNAME:-username}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-password}
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - MAIL_HOST=${SMTP_HOST:-mailpit}
+      - MAIL_PORT=${SMTP_PORT:-1025}
+      - MAIL_USERNAME=${SMTP_USERNAME:-username}
+      - MAIL_PASSWORD=${SMTP_PASSWORD:-password}
+      - MAIL_SMTP_AUTH=${SMTP_AUTH:-false}
+      - MAIL_SMTP_STARTTLS=${SMTP_STARTTLS:-false}
+      - RABBITMQ_HOST=${BROKER_HOST:-host.docker.internal}
+      - RABBITMQ_PORT=${BROKER_PORT:-5672}
+      - RABBITMQ_USER=${BROKER_USER:-guest}
+      - RABBITMQ_PASSWORD=${BROKER_PASSWORD:-guest}
       - RABBITMQ_EXCHANGE_OUTPUT=${RABBITMQ_EXCHANGE_OUTPUT:-finance-output}
       - RABBITMQ_EXCHANGE_INPUT=${RABBITMQ_EXCHANGE_INPUT:-finance-input}
       - RABBITMQ_EXCHANGE_DEAD_LETTER=${RABBITMQ_EXCHANGE_DEAD_LETTER:-finance-dlx}
@@ -92,27 +129,37 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      mailpit:
+        condition: service_started
+      rabbitmq-init:
+        condition: service_completed_successfully
+        required: false
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/api/actuator/health/liveness | grep -q UP" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   seeder:
     image: postgres:15-alpine
-    container_name: mecanicadm-seeder
+    container_name: mecanicadm-finance-api-v4-seeder
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     volumes:
       - ./docker/database/init.sql:/seed/init.sql:ro
     command: >
       sh -c '
-        until PGPASSWORD=${POSTGRES_PASSWORD} psql -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} -tAc "SELECT 1 FROM flyway_schema_history WHERE success = true AND script = '\''V02__create_budget_decision_tokens_table.sql'\''" | grep -q 1; do
+        until PGPASSWORD=${POSTGRES_PASSWORD:-admin} psql -h db -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-mecanicadmfinancedb} -tAc "SELECT 1 FROM flyway_schema_history WHERE success = true AND script = '\''V07__budget_decision_tokens_expiry_notified.sql'\''" | grep -q 1; do
           echo "Aguardando o Flyway concluir as migrations...";
           sleep 3;
         done;
-      
-        echo "Flyway concluído! Rodando o init.sql...";
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /seed/init.sql
+
+        echo "Flyway concluido! Rodando o init.sql...";
+        PGPASSWORD=${POSTGRES_PASSWORD:-admin} psql -h db -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-mecanicadmfinancedb} -f /seed/init.sql
       '
+    restart: "no"
 
 volumes:
   postgres_data:
-  rabbitmq_data:

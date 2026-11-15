@@ -2,6 +2,7 @@ package com.mecanicadm.mecanicadm_finance_api.infra.features.workorder.messaging
 
 import com.mecanicadm.mecanicadm_finance_api.core.shared.domain.InboxEntry;
 import com.mecanicadm.mecanicadm_finance_api.core.shared.usecase.ProcessInboundMessageUseCase;
+import com.mecanicadm.mecanicadm_finance_api.infra.messaging.inbox.InboundMessageContext;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.CancelBudgetIntegrationCommand;
 import com.mecanicadm.mecanicadm_finance_api.core.workorder.domain.event.GenerateBudgetIntegrationCommand;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -20,6 +21,7 @@ import java.util.UUID;
 @Component
 public class BudgetQueueListener {
 
+    private static final String MESSAGE_ID_HEADER = "message-id";
     private static final Logger logger = LoggerFactory.getLogger(BudgetQueueListener.class);
 
     private final Jackson2JsonMessageConverter messageConverter;
@@ -69,6 +71,7 @@ public class BudgetQueueListener {
         logger.info("Recebida mensagem na fila {} (eventType={}, messageId={})",
                 consumer, eventType, messageId);
 
+        InboundMessageContext.set(messageId);
         try {
             boolean processed = processInboundMessageUseCase.execute(
                     entry, () -> dispatch(message, eventType));
@@ -85,6 +88,8 @@ public class BudgetQueueListener {
             logger.error("Erro ao processar mensagem (messageId={}, eventType={}, consumer={}): {}",
                     messageId, eventType, consumer, e.getMessage(), e);
             throw e;
+        } finally {
+            InboundMessageContext.clear();
         }
     }
 
@@ -102,7 +107,10 @@ public class BudgetQueueListener {
     }
 
     private UUID resolveMessageId(Message message, String eventType) {
-        String headerId = message.getMessageProperties().getMessageId();
+        String headerId = resolveHeader(message, MESSAGE_ID_HEADER);
+        if (headerId == null || headerId.isBlank()) {
+            headerId = message.getMessageProperties().getMessageId();
+        }
 
         if (headerId != null && !headerId.isBlank()) {
             try {

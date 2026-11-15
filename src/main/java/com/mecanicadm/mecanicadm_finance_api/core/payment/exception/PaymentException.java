@@ -61,6 +61,18 @@ public class PaymentException {
         }
     }
 
+    public static class PaymentAlreadyConfirmed extends DomainExceptionCore {
+        public PaymentAlreadyConfirmed() {
+            super("payment.already.confirmed", 409);
+        }
+    }
+
+    public static class PaymentNotRefundable extends DomainExceptionCore {
+        public PaymentNotRefundable() {
+            super("payment.not.refundable", 409);
+        }
+    }
+
     public static class PaymentNotFound extends DomainExceptionCore {
         public PaymentNotFound() {
             super("payment.not.found", 404);

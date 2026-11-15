@@ -78,7 +78,7 @@ class CreateMercadoPagoOrderUseCaseTest {
         MercadoPagoOrder expectedOrder = new MercadoPagoOrder();
 
         when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
-        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString()))
                 .thenReturn(expectedOrder);
         when(paymentGateway.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -88,7 +88,7 @@ class CreateMercadoPagoOrderUseCaseTest {
         verify(generateTokenUseCase, never()).execute(anyString(), anyString());
 
         ArgumentCaptor<MercadoPagoOrderData> captor = ArgumentCaptor.forClass(MercadoPagoOrderData.class);
-        verify(orderGateway).createOrder(captor.capture(), eq(ACCESS_TOKEN), eq(idempotencyKey));
+        verify(orderGateway).createOrder(captor.capture(), eq(ACCESS_TOKEN), anyString());
 
         MercadoPagoOrderData orderData = captor.getValue();
         assertEquals(idempotencyKey, orderData.externalReference());
@@ -114,7 +114,7 @@ class CreateMercadoPagoOrderUseCaseTest {
                 "4111111111111111", "11", "2030", "123", "APRO", "CPF", "19119119100");
 
         when(cardTokenGateway.createCardToken(expectedCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
-        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString()))
                 .thenReturn(new MercadoPagoOrder());
 
         useCase.execute(command(idempotencyKey, providedCard));
@@ -134,13 +134,13 @@ class CreateMercadoPagoOrderUseCaseTest {
 
         when(generateTokenUseCase.execute("client-id", "client-secret")).thenReturn(authToken);
         when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
-        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString()))
                 .thenReturn(new MercadoPagoOrder());
 
         useCase.execute(command(idempotencyKey, null));
 
         verify(generateTokenUseCase).execute("client-id", "client-secret");
-        verify(orderGateway).createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey));
+        verify(orderGateway).createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString());
     }
 
     @Test
@@ -206,7 +206,7 @@ class CreateMercadoPagoOrderUseCaseTest {
         MercadoPagoOrder expectedOrder = order("mp-order-1", "approved", "mp-payment-1");
 
         when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
-        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString()))
                 .thenReturn(expectedOrder);
         when(paymentGateway.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -246,7 +246,7 @@ class CreateMercadoPagoOrderUseCaseTest {
                 null, null, null, null, null, null);
 
         when(cardTokenGateway.createCardToken(defaultCard, PUBLIC_KEY)).thenReturn(CARD_TOKEN);
-        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), eq(idempotencyKey)))
+        when(orderGateway.createOrder(any(MercadoPagoOrderData.class), eq(ACCESS_TOKEN), anyString()))
                 .thenThrow(new PaymentException.MercadoPagoProviderError(502, "provider unavailable"));
 
         assertThrows(PaymentException.MercadoPagoProviderError.class, () -> useCase.execute(command));

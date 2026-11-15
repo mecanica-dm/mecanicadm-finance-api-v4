@@ -129,6 +129,28 @@
         "x-match": "all",
         "event-type": "GeneratePaymentIntegrationCommand"
       }
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "payment",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "CancelPaymentIntegrationCommand"
+      }
+    },
+    {
+      "source": "finance-input",
+      "vhost": "/",
+      "destination": "payment",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {
+        "x-match": "all",
+        "event-type": "RefundPaymentIntegrationCommand"
+      }
     }
   ]
 }

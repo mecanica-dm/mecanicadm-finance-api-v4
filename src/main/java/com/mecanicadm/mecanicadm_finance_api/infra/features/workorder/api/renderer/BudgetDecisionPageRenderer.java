@@ -47,7 +47,7 @@ public final class BudgetDecisionPageRenderer {
                 <body>
                     <div class="container">
                         <h1>%s</h1>
-                        <form method="POST" action="/budget-decision/%s">
+                        <form method="POST" action="../%s">
                             <input type="hidden" name="action" value="%s">
                             <label for="observation">%s</label>
                             <textarea id="observation" name="observation" placeholder="Digite aqui..." %s></textarea>

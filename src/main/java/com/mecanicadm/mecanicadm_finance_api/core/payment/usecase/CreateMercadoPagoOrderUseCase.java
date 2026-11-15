@@ -74,7 +74,6 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
         String payerEmail = valueOrDefault(command.payerEmail(), DEFAULT_PAYER_EMAIL);
         String payerFirstName = valueOrDefault(command.payerFirstName(), DEFAULT_PAYER_FIRST_NAME);
         String payerLastName = valueOrDefault(command.payerLastName(), DEFAULT_PAYER_LAST_NAME);
-        String paymentMethodId = valueOrDefault(command.paymentMethodId(), DEFAULT_PAYMENT_METHOD_ID);
         String paymentMethodType = valueOrDefault(command.paymentMethodType(), DEFAULT_PAYMENT_METHOD_TYPE);
         int installments = resolveInstallments(command.installments());
         UUID workOrderId = resolveWorkOrderId(externalReference);
@@ -84,6 +83,7 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
             AuthToken authToken = resolveAuthToken();
             String publicKey = resolvePublicKey(authToken);
             CardData card = resolveCard(command.card());
+            String paymentMethodId = valueOrDefault(command.paymentMethodId(), detectBrand(card.number()));
             String cardToken = cardTokenGateway.createCardToken(card, publicKey);
 
             if (cardToken == null || cardToken.isBlank()) {
@@ -104,7 +104,7 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
             );
 
             MercadoPagoOrder order = orderGateway.createOrder(
-                    orderData, authToken.getAccessToken(), command.idempotencyKey());
+                    orderData, authToken.getAccessToken(), UUID.randomUUID().toString());
 
             payment = paymentGateway.save(Payment.create(
                     externalReference,
@@ -152,6 +152,24 @@ public class CreateMercadoPagoOrderUseCase implements UseCase<CreateMercadoPagoO
             throw new PaymentException.PaymentPublicKeyRequired();
         }
         return publicKey;
+    }
+
+    /** Bandeira (payment_method_id do Mercado Pago) deduzida do número do cartão; visa quando não reconhece. */
+    private static String detectBrand(String cardNumber) {
+        String digits = cardNumber == null ? "" : cardNumber.replaceAll("\\D", "");
+        if (digits.matches("^(5[1-5]|2(2[2-9][1-9]|2[3-9]|[3-6]|7[01]|720)).*")) {
+            return "master";
+        }
+        if (digits.matches("^3[47].*")) {
+            return "amex";
+        }
+        if (digits.matches("^(636368|438935|504175|451416|636297|5067|4576|4011|506699).*")) {
+            return "elo";
+        }
+        if (digits.matches("^(606282|3841).*")) {
+            return "hipercard";
+        }
+        return DEFAULT_PAYMENT_METHOD_ID;
     }
 
     private CardData resolveCard(CardData card) {

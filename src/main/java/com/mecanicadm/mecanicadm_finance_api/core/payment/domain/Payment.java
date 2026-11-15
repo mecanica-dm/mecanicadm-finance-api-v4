@@ -24,6 +24,12 @@ public record Payment(
 
     private static final String UNKNOWN_STATUS = "UNKNOWN";
 
+    public Payment withProviderUpdate(String newStatus, MercadoPagoOrder newProviderResponse) {
+        return new Payment(id, externalReference, idempotencyKey, mercadoPagoOrderId, mercadoPagoPaymentId, newStatus,
+                statusDetail, amount, installments, paymentMethodId, payerEmail,
+                newProviderResponse != null ? newProviderResponse : providerResponse, createdAt, Instant.now());
+    }
+
     public static Payment create(String externalReference,
                                  String idempotencyKey,
                                  BigDecimal amount,

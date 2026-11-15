@@ -2,7 +2,7 @@ package com.mecanicadm.mecanicadm_finance_api.core.shared.domain.event;
 
 import java.util.UUID;
 
-public class FinanceCommandRejected implements MessageHeader {
+public class FinanceCommandRejectedEvent implements MessageHeader {
     private UUID messageId = UUID.randomUUID();
     private UUID workOrderId;
 
@@ -10,14 +10,21 @@ public class FinanceCommandRejected implements MessageHeader {
     private String exception;
     private String message;
 
-    public FinanceCommandRejected() {
+    public FinanceCommandRejectedEvent() {
     }
 
-    public FinanceCommandRejected(UUID workOrderId, String eventType, String exception, String message) {
+    public FinanceCommandRejectedEvent(UUID workOrderId, String eventType, String exception, String message) {
         this.workOrderId = workOrderId;
         this.eventType = eventType;
         this.exception = exception;
         this.message = message;
+    }
+
+    public FinanceCommandRejectedEvent(UUID workOrderId, String eventType, String exception, String message, UUID messageId) {
+        this(workOrderId, eventType, exception, message);
+        if (messageId != null) {
+            this.messageId = messageId;
+        }
     }
 
     @Override

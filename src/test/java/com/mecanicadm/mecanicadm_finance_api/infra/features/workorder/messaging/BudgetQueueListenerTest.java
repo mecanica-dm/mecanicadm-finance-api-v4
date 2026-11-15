@@ -188,6 +188,21 @@ class BudgetQueueListenerTest {
     }
 
     @Test
+    @DisplayName("Deve preferir o header message-id ao messageId do AMQP como chave da inbox")
+    void shouldPreferMessageIdHeaderOverAmqpProperty() {
+        UUID headerId = UUID.randomUUID();
+        Message message = messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName());
+        message.getMessageProperties().setHeader("message-id", headerId.toString());
+        message.getMessageProperties().setMessageId(UUID.randomUUID().toString());
+
+        listener.onMessage(message);
+
+        ArgumentCaptor<InboxEntry> captor = ArgumentCaptor.forClass(InboxEntry.class);
+        verify(processInboundMessageUseCase).execute(captor.capture(), any(Runnable.class));
+        assertThat(captor.getValue().messageId()).isEqualTo(headerId);
+    }
+
+    @Test
     @DisplayName("Deve gerar chave determinística quando não houver messageId")
     void shouldGenerateDeterministicKeyWhenMessageIdIsMissing() {
         listener.onMessage(messageWithEventType(GenerateBudgetIntegrationCommand.class.getSimpleName()));
