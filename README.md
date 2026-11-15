@@ -578,7 +578,7 @@ As rotas também respondem em `/work-orders/{workOrderId}/budget/...`.
 
 ## ✅ Testes
 
-O projeto possui uma suíte de testes unitários e de integração (Testcontainers com PostgreSQL) para garantir a qualidade e a estabilidade do código.
+O projeto possui uma suíte de testes unitários, **testes BDD (Gherkin/Cucumber)** e de integração (Testcontainers com PostgreSQL) para garantir a qualidade e a estabilidade do código.
 
 Para executar todos os testes via Maven:
 ```bash
@@ -589,6 +589,17 @@ Os relatórios de cobertura de testes (Jacoco) são gerados em `target/site/jaco
 **Evidência de cobertura** (JaCoCo, `mvn verify`, 12/11/2026): **89,5% das linhas**, 90,5% das instruções e 75,1% dos branches. A métrica combinada de linhas e branches que o SonarCloud usa fica em 86,6%. As linhas e a métrica combinada ficam acima do mínimo de 80% do desafio. O CI publica o relatório no SonarCloud.
 
 As rotinas têm testes unitários (`ExpireWorkOrderBudgetsUseCaseTest`, `VerifyPendingPaymentsUseCaseTest`, os dois `...JobTest`) e de integração contra o PostgreSQL (`JdbcBudgetExpiryGatewayIT`, `PendingPaymentsIT`). Os testes de contrato com a saga são o `GenerateBudgetContractTest` (lê o command no formato que a saga publica) e o `BudgetEventsSerializationTest` (os campos que a saga lê dos eventos). O `PublicRoutesSecurityIT` confere o que é público e o que exige JWT.
+
+### 🥒 Testes BDD (Gherkin)
+
+Os cenários ficam em `src/test/resources/features`, escritos em português (`# language: pt`), e rodam pela classe `CucumberFinanceIT`, junto dos testes de integração (`mvn verify`, com Docker). Eles sobem o **contexto Spring completo com PostgreSQL (Testcontainers)** e exercitam os casos de uso reais do Finance; só o que é externo é trocado por dublês em memória: o Mercado Pago e o envio de e-mail (`FinanceTestDoubles`). Os eventos que a saga receberia são lidos da tabela `outbox_messages`. Os passos estão em `src/test/java/com/mecanicadm/mecanicadm_finance_api/bdd`. O relatório HTML fica em `target/cucumber-reports/cucumber.html`.
+
+| Feature | Cenários |
+|---|---|
+| `fluxo_completo_orcamento_e_pagamento.feature` | Do orçamento ao pagamento confirmado (geração, envio por e-mail, aprovação pelo link, link de pagamento, confirmação); pagamento pendente confirmado pela verificação periódica; cancelar depois do pagamento estorna o valor e cancela o orçamento |
+| `decisao_do_cliente_e_falhas.feature` | Rejeição; pedido de alterações seguido de recálculo, novo envio e aprovação; link de decisão de uso único; orçamento aprovado ou cancelado não aceita recálculo; pagamento recusado; falha ao gerar o pagamento; cancelamento de pagamento pendente |
+
+Para rodar só o BDD: `mvn verify -Dit.test=CucumberFinanceIT -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false`.
 
 ---
 
