@@ -35,6 +35,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -234,7 +235,7 @@ public class FinanceStepDefinitions {
 
     @Então("os eventos publicados, em ordem, são {string}")
     public void eventosEmOrdem(String expected) {
-        assertEquals(List.of(expected.split("\\s*,\\s*")), events());
+        assertEquals(Arrays.stream(expected.split(",")).map(String::trim).toList(), events());
     }
 
     @Então("o cliente recebeu um e-mail com os links de decisão do orçamento")

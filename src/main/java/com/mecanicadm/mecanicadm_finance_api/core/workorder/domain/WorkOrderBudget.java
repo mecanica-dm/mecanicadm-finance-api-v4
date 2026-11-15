@@ -150,11 +150,11 @@ public class WorkOrderBudget {
     }
 
     public Set<WorkOrderBudgetItem> getItems() {
-        return info.getItems();
+        return info == null ? Set.of() : info.getItems();
     }
 
     public String getDescription() {
-        return info.getDescription();
+        return info == null ? null : info.getDescription();
     }
 
     public WorkOrderBudgetInfo getInfo() {

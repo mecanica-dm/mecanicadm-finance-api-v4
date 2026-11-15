@@ -116,9 +116,9 @@ class CalculateWorkOrderBudgetUseCaseTest {
         when(gateway.findById(workOrderId)).thenReturn(Optional.of(budget));
         CalculateWorkOrderBudgetCommand command = new CalculateWorkOrderBudgetCommand(workOrderId, new BigDecimal("500.00"));
 
-        org.junit.jupiter.api.Assertions.assertThrows(
+        assertThrows(
                 com.mecanicadm.mecanicadm_finance_api.core.workorder.exception.BudgetExceptions.BudgetNotEditable.class,
                 () -> useCase.execute(command));
-        org.mockito.Mockito.verify(gateway, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+        verify(gateway, never()).save(any());
     }
 }
