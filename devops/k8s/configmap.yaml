@@ -1,7 +1,7 @@
 # Configuracao nao sensivel da Finance API.
 #
-# Credenciais (banco, JWT, SMTP, New Relic e Mercado Pago) NAO ficam aqui: sao
-# criadas pela pipeline (app-deploy.yml) nos Secrets
+# Credenciais (banco, JWT, SMTP, New Relic, Mercado Pago e RabbitMQ) NAO ficam
+# aqui: sao criadas pela pipeline (app-deploy.yml) nos Secrets
 # "mecanicadm-finance-db-secrets" e "mecanicadm-finance-secrets".
 apiVersion: v1
 kind: ConfigMap
@@ -25,11 +25,14 @@ data:
 
   # O grupo de readiness do Spring Boot inclui, por padrao, apenas o estado do
   # pod. Declaramos "db" explicitamente para o pod nao ficar pronto com o banco
-  # fora do ar, e deixamos o RabbitMQ de fora: ele ainda nao foi provisionado e
-  # derrubaria o readiness do pod.
+  # fora do ar, e deixamos o RabbitMQ de fora: um blip do broker nao deve tirar
+  # o pod do Service.
   MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE: "readinessState,db"
 
-  # RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD e os nomes de
-  # exchanges/filas entram aqui quando o broker for provisionado (ver
-  # devops/terraform/README.md). Sem essas variaveis a aplicacao tenta
-  # localhost:5672, falha e continua tentando reconectar sem derrubar o pod.
+  # Broker gerenciado no CloudAMQP (Little Lemur). Host e porta nao sao segredo;
+  # as credenciais (RABBITMQ_USER, RABBITMQ_PASSWORD e RABBITMQ_VHOST) chegam
+  # pelo Secret "mecanicadm-finance-secrets", criado pela pipeline a partir do
+  # SSM em /mecanicadm/prod/rabbitmq.
+  RABBITMQ_HOST: "moose.rmq.cloudamqp.com"
+  RABBITMQ_PORT: "5671"
+  RABBITMQ_SSL_ENABLED: "true"
