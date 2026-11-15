@@ -21,7 +21,7 @@ Bindings da `finance-input`, usada apenas para eventos **consumidos** (header `e
 
 - `GenerateBudgetIntegrationCommand`
 - `CancelBudgetIntegrationCommand`
-- `GeneratePaymentIntegrationCommand` (fila `payment`)
+- `GeneratePaymentIntegrationCommand`, `CancelPaymentIntegrationCommand` e `RefundPaymentIntegrationCommand` (fila `payment`)
 
 ## Como importar
 

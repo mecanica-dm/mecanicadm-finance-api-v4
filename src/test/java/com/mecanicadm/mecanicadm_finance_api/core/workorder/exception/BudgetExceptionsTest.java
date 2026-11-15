@@ -31,6 +31,7 @@ class BudgetExceptionsTest {
         assertException(new BudgetExceptions.BudgetDecisionInvalid("INVALID"), 400, "budget.decision.invalid");
         assertException(new BudgetExceptions.BudgetObservationRequired(), 400, "budget.observation.required");
         assertException(new BudgetExceptions.BudgetNotWaitingDecision(), 400, "budget.not.waiting.decision");
+        assertException(new BudgetExceptions.BudgetNotEditable("CANCELED"), 409, "budget.not.editable");
         assertException(new BudgetExceptions.BudgetTotalPriceInvalid(), 400, "budget.total.price.invalid");
         assertException(new BudgetExceptions.BudgetStatusInvalid(), 400, "budget.status.invalid");
         assertException(new BudgetExceptions.BudgetTokenNotFound(), 404, "budget.token.not.found");

@@ -47,7 +47,7 @@ class CalculateWorkOrderBudgetUseCaseTest {
         WorkOrderBudget budget = WorkOrderBudget.restore(
                 workOrderId,
                 new BigDecimal("10.00"),
-                WorkOrderBudgetStatus.APPROVED,
+                WorkOrderBudgetStatus.CHANGES_REQUESTED,
                 "observacao",
                 new WorkOrderBudgetInfo(null, null, "descricao", Set.of(
                         WorkOrderBudgetItem.create("Material", 2, new BigDecimal("50.00"), WorkOrderBudgetItem.TYPE_MATERIAL),
@@ -105,5 +105,20 @@ class CalculateWorkOrderBudgetUseCaseTest {
 
         verify(gateway, never()).save(any());
         verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    @DisplayName("Nao deve recalcular orcamento ja aprovado, rejeitado ou cancelado")
+    void shouldNotRecalculateFinalBudget() {
+        UUID workOrderId = UUID.randomUUID();
+        WorkOrderBudget budget = WorkOrderBudget.restore(
+                workOrderId, new BigDecimal("100.00"), WorkOrderBudgetStatus.CANCELED, null);
+        when(gateway.findById(workOrderId)).thenReturn(Optional.of(budget));
+        CalculateWorkOrderBudgetCommand command = new CalculateWorkOrderBudgetCommand(workOrderId, new BigDecimal("500.00"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.mecanicadm.mecanicadm_finance_api.core.workorder.exception.BudgetExceptions.BudgetNotEditable.class,
+                () -> useCase.execute(command));
+        org.mockito.Mockito.verify(gateway, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
     }
 }

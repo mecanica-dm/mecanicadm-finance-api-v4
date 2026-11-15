@@ -282,6 +282,11 @@ stateDiagram-v2
     APPROVED --> [*]
     REJECTED --> [*]
     CANCELED --> [*]
+    note right of APPROVED
+        APPROVED, REJECTED e CANCELED são finais:
+        recalcular, ajustar ou enviar devolve 409 (budget.not.editable).
+        Só PENDING, WAITING_DECISION e CHANGES_REQUESTED aceitam recálculo.
+    end note
 ```
 
 ---
