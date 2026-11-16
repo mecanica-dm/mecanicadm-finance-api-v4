@@ -86,62 +86,6 @@ flowchart LR
 
 </div>
 
-### Fluxo de CI/CD
-
-<div align="center">
-
-```mermaid
-flowchart LR
-    TRIGGER[Disparo do Workflow] --> COND{Evento}
-    COND -->|push em main| M1[Branch: main]
-    COND -->|pull_request| PR[Pipeline PR]
-    COND -->|workflow_dispatch| WD[Manual]
-
-    M1 --> BUILD
-    PR --> BUILD
-    WD --> BUILD
-
-    subgraph BUILD[build-and-test]
-        direction LR
-        A1[Checkout]
-        A2[Setup JDK 21]
-        A3[mvn clean verify]
-        A4[Análise Sonar]
-        A1 --> A2 --> A3 --> A4
-    end
-
-    subgraph SEC[security-scan]
-        direction LR
-        S1[Checkout]
-        S2[Subir aplicação]
-        S3[ZAP Scan OpenAPI]
-        S4[Upload Relatório]
-        S5[Parar containers]
-        S1 --> S2 --> S3 --> S4 --> S5
-    end
-
-    BUILD -->|sucesso| SEC
-
-    subgraph PUB[publish-and-deploy]
-        direction LR
-        P1[Login Docker Hub]
-        P2[Build e push imagem]
-        P3[Disparar deploy K8s]
-        P1 --> P2 --> P3
-    end
-
-    SEC -->|sucesso| GATE{Em main?}
-    GATE -->|sim| PUB
-    GATE -->|não| FIM1[Fim - sem deploy]
-    PUB --> FIM2[Deploy no K8s]
-```
-
-</div>
-
-* build-and-test: Responsável por fazer o maven build, executar os testes unitários e de integração (`mvn clean verify`) e a análise do Sonar.
-* security-scan: Rodamos o ZAP Scan para verificar problemas de segurança.
-* publish-and-deploy: Aqui fazemos o build da imagem docker e publicamos para o Docker Hub, além disso fazemos um trigger para rodar a próxima pipe do repositório de k8s.
-
 ### Diagrama de Entidade-Relacionamento
 
 ```mermaid
@@ -603,8 +547,138 @@ Para rodar só o BDD: `mvn verify -Dit.test=CucumberFinanceIT -Dtest=NoSuchTest 
 
 ---
 
+## ⚙️ Pipelines (GitHub Actions)
+
+O repositório tem quatro workflows em `.github/workflows/`. Cada diagrama abaixo mostra o gatilho, os jobs e os passos principais.
+
+### ci-cd.yml (CI/CD - API Mecânica DM)
+
+<div align="center">
+
+```mermaid
+flowchart LR
+    push["push em main"]
+    pr["pull_request (opened, synchronize, reopened)"]
+    manual["workflow_dispatch"]
+
+    push --> J1
+    pr --> J1
+    manual --> J1
+
+    subgraph J1["build-and-test"]
+        direction LR
+        b1["Checkout"] --> b2["Setup JDK 21"] --> b3["mvn clean verify"] --> b4["Sonar Analysis"]
+    end
+
+    J1 -->|"sucesso"| J2
+
+    subgraph J2["security-scan (OWASP ZAP)"]
+        direction LR
+        z1["Checkout"] --> z2["Build da imagem"] --> z3["docker compose up"] --> z4["Aguarda a API"] --> z5["Valida OpenAPI"] --> z6["ZAP Scan"] --> z7["Upload do relatório"] --> z8["docker compose down -v"]
+    end
+
+    J2 -->|"sucesso"| G{"Push ou dispatch em main?"}
+    G -->|"não (pull_request)"| F1(["Fim: sem publicação"])
+    G -->|"sim"| J3
+
+    subgraph J3["publish-and-deploy (environment prod)"]
+        direction LR
+        p1["Login Docker Hub"] --> p2["Build e push da imagem"] --> p3["gh workflow run app-deploy.yml"]
+    end
+```
+
+</div>
+
+### terraform.yml (Terraform - Finance DB + Secrets)
+
+<div align="center">
+
+```mermaid
+flowchart LR
+    push["push em main (devops/terraform/**)"]
+    pr["pull_request (devops/terraform/**)"]
+    manual["workflow_dispatch"]
+
+    push --> T1
+    pr --> T1
+    manual --> T1
+
+    subgraph T1["terraform (environment prod)"]
+        direction LR
+        t1["Checkout"] --> t2["Credenciais AWS"] --> t3["Setup Terraform 1.15.4"] --> t4["Garante bucket do state (fora de PR)"] --> t5["Valida parâmetros SSM (vpc_id, eks_node_sg_id, jwt_secret)"] --> t6["terraform init (backend S3)"] --> t7["terraform fmt -check"] --> t8["terraform validate"] --> t9["terraform plan -out=tfplan-prod"]
+    end
+
+    t9 --> G{"Push ou dispatch em main?"}
+    G -->|"não (pull_request)"| F1(["Fim: só valida"])
+    G -->|"sim"| A["terraform apply tfplan-prod"]
+    A --> O["terraform output"]
+    O --> WR(["workflow_run: app-deploy.yml"])
+```
+
+</div>
+
+### app-deploy.yml (Deploy Aplicação - Kubernetes)
+
+<div align="center">
+
+```mermaid
+flowchart LR
+    push["push em main (devops/k8s/**, messaging/**)"]
+    manual["workflow_dispatch (image_tag)"]
+    wr["workflow_run: Terraform concluído"]
+
+    wr --> C{"Terraform com sucesso em push?"}
+    C -->|"não"| F1(["Fim: não deploya"])
+    C -->|"sim"| D
+
+    push --> D
+    manual --> D
+
+    subgraph D["deploy (environment prod)"]
+        direction LR
+        subgraph S1["Preparação"]
+            direction LR
+            d1["Checkout e credenciais AWS"] --> d2["kubeconfig do EKS"] --> d3["Namespace mecanicadm"] --> d4["Secret do banco (SSM finance/*)"] --> d5["Publica credenciais RabbitMQ no SSM"] --> d6["Secret da aplicação (JWT do SSM + GitHub Secrets)"] --> d7["Aguarda o Kong"] --> d8["kubectl apply (serviceaccount, configmap, service, deployment, hpa, ingress)"] --> d9["Topologia RabbitMQ (CloudAMQP)"]
+        end
+        subgraph S2["Rollout e seed"]
+            direction LR
+            r1["Define a tag da imagem"] --> r2["set image no Deployment"] --> r3["rollout restart"] --> r4["rollout status"] --> r5["ConfigMap do seed"] --> r6["Remove o Job de seed anterior"] --> r7["Executa o Job de seed e aguarda"]
+        end
+        S1 --> S2
+    end
+```
+
+</div>
+
+### destroy.yml (DESTROY - Finance DB + Secrets)
+
+<div align="center">
+
+```mermaid
+flowchart LR
+    manual["workflow_dispatch (confirmation)"] --> C{"confirmation == DESTRUIR?"}
+    C -->|"não"| F1(["Job pulado"])
+    C -->|"sim"| D
+
+    subgraph D["destroy (environment prod)"]
+        direction LR
+        d1["Checkout"] --> d2["Credenciais AWS"] --> d3["Setup Terraform 1.15.4"] --> d4["terraform init (backend S3)"] --> d5["terraform destroy -auto-approve"]
+    end
+
+    D --> V["Verifica órfãos (always): RDS, Secrets e SSM do finance"]
+```
+
+</div>
+
 ## 📖 Documentação
 
 - [`docs/arquitetura-geral.md`](docs/arquitetura-geral.md): visão geral do sistema, com os diagramas.
 - [`docs/adr`](docs/adr), [`docs/rfc`](docs/rfc): decisões de arquitetura.
 - [`../mecanicadm-saga-api-v4/docs/apoio/saga-fluxo.md`](../mecanicadm-saga-api-v4/docs/apoio/saga-fluxo.md): o fluxo da saga e a topologia dos três serviços.
+
+## Repositórios relacionados
+
+- [mecanicadm-infra-v4](https://github.com/mecanica-dm/mecanicadm-infra-v4)
+- [mecanicadm-lambda-v4](https://github.com/mecanica-dm/mecanicadm-lambda-v4)
+- [mecanicadm-workorder-api-v4](https://github.com/mecanica-dm/mecanicadm-workorder-api-v4)
+- [mecanicadm-saga-api-v4](https://github.com/mecanica-dm/mecanicadm-saga-api-v4)
